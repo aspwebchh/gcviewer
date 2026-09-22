@@ -1,0 +1,299 @@
+/*************************************************************************************************
+
+ * Author: Mahesh
+ * Date: June 4, 2020
+ * 
+ * This file is used to execute all javascript code for the alert settings page.
+ * 
+ **************************************************************************************************/
+
+function isContainSpecialChar(str) {
+	
+	return /[~!#$%\^&*+=\-\[\]\\';`,/{}()|\\":<>\?]/g.test(str);
+}
+
+/**
+ * This function is used to validate whether string contains only numbers and dot.
+ * 
+ * */
+function isValid(str) {
+	
+    var rgx = /^[0-9]*\.?[0-9]*$/;
+    return str.match(rgx);
+}
+
+/**
+ * Calling this function on key press event. When user type anything in textbox this 
+ * function will be called. If user is pressing enter key after typing into textbox
+ * in that case also this function will be called.
+ * 
+ * */
+function keydown(e, element) {
+	
+	//$.toast().reset('all');
+	
+	// Hide error message if the user starts typing and remove red border
+	var ids = [];
+	ids.push(e.target.id);
+	ids.push("alert_common");
+	hideError(ids);
+	
+	// Validate the input on keypress event
+	var fieldIds = [];
+	var lastChar = $(element).val().charAt($(element).val().length-1);
+
+	if(!isValid($(element).val())) {
+	
+		var obj = {};
+		obj["id"] = "alert_common";
+		obj["message"] = invalidNumber;
+		obj["fieldName"] = "commonMsg";
+		obj["border"] ="false";
+		
+		fieldIds.push(obj);
+		showError(fieldIds);
+		
+		return false;
+	}
+	
+	var charCode = (e.which) ? e.which : e.keyCode;
+    //if ((isContainSpecialChar(lastChar)) || (charCode > 31 && (charCode != 37 && charCode != 38 && charCode != 39 && charCode != 40)) && (charCode < 48 || charCode > 57) && !(charCode == 46 || charCode == 8) && e.key === lastChar) {
+	if (charCode != 46 && (charCode > 31 && (charCode != 37 && charCode != 38 && charCode != 39 && charCode != 40)) 
+			&& (charCode < 48 || charCode > 57) && !(charCode == 46 || charCode == 8)) {	
+				
+    	//toastError("Error", "Only numbers and decimal values are allowed.", true);
+    	
+    	var obj = {};
+		obj["id"] = "alert_common";
+		obj["message"] = invalidNumber;
+		obj["fieldName"] = "commonMsg";
+		obj["border"] ="false";
+			
+		fieldIds.push(obj);
+		showError(fieldIds);
+		return false;
+    } else {
+    	
+        var len = $(element).val().length;
+        var index = $(element).val().indexOf('.');
+        if (index > 0 && charCode == 46) {
+        	
+        	//toastError("Error", "Only numbers and decimal values are allowed.", true);
+        	var obj = {};
+    		obj["id"] = "alert_common";
+    		obj["message"] = invalidNumber;
+    		obj["fieldName"] = "commonMsg";
+    		obj["border"] ="false";
+    			
+    		fieldIds.push(obj);
+    		showError(fieldIds);
+    		return false;
+        }
+        if (index >= 0) {
+          var CharAfterdot = (len) - index;
+          if (CharAfterdot > 3) {
+        	  //toastError("Error", "Only 2 decimal points are allowed.", true);
+        	  
+        	var obj = {};
+      		obj["id"] = "alert_common";
+      		obj["message"] = invalidDecimal;
+      		obj["fieldName"] = "commonMsg";
+      		obj["border"] ="false";
+      			
+      		fieldIds.push(obj);
+      		showError(fieldIds);
+      		return false;
+          }
+        }
+      }
+    
+    if (e.keyCode === 13) {
+    	submitAlertSettings();
+    }
+}
+
+/**
+ * Function is used to validate the inputs sent in the request.
+ * */
+function validateInputs(pauseTime, throughput) {
+	
+	/*var msg = null;
+	if(!(pauseTime) || pauseTime == "null") {
+		msg = "Please enter GC puase time(second).";
+	}
+	if(!(throughput) || throughput == "null") {
+		msg = (msg) ? msg + ", Please enter GC throughput(%)" : "Please enter GC throughput(%)";
+	}
+	
+	return msg;*/
+	
+	var fieldIds = [];
+	
+	if(!pauseTime) {
+		
+		var obj = {};
+		obj["id"] = "pausetime";
+		obj["message"] = emptyPausetime;
+		obj["fieldName"] = "pausetime";
+		obj["border"] ="true";
+		
+		fieldIds.push(obj);
+	}
+	
+	if(!throughput) {
+		
+		var obj = {};
+		obj["id"] = "throughput";
+		obj["message"] = emptyThroughput;
+		obj["fieldName"] = "throughput";
+		obj["border"] ="true";
+		
+		fieldIds.push(obj);
+	}
+	
+	return fieldIds;
+}
+
+/**
+ * This function will be invoked when user clicks on submit button in alert settings modal.
+ * In this function we are taking inputs from the user and calling /threshold API to store data into DB
+ * 
+ * */
+function submitAlertSettings() {
+
+	$("#loading_img").css("display", "block");
+	
+	var pauseTime = $("#pausetime").val();
+	var throughput = $("#throughput").val();
+	
+	var invalidFields = validateInputs(pauseTime, throughput);
+	if(invalidFields.length > 0) {
+		
+		$("#loading_img").css("display", "none");
+		
+		//toastError("Error", validationMsg, true);
+		
+		// Show error message
+		showError(invalidFields);
+		
+		return;
+	}
+	
+	$.ajax({
+        type: "POST",
+        url: thresholdURL,
+        data: {
+        	'pausetime': pauseTime,
+        	'throughput': throughput
+        },
+        success: function (result) {
+        	if(result){
+        		
+        		// If the result is success/fail, showing message in the toaster.
+        		if(result.status) {
+        			
+        			toastSuccess(success, result.message, false);
+        			$('#alert_settings_modal').modal('hide');
+        		} else {
+        			
+        			//toastError("Failed", result, true);
+        			
+        			var fieldId = [];
+        			var obj = {};
+        			obj["id"] = "alert_common";
+        			obj["message"] = result.message;
+        			obj["fieldName"] = "commonMsg";
+        			obj["border"] ="false";
+        				
+        			fieldId.push(obj);
+        			showError(fieldId);
+        		}
+        	} else {
+        		location.href = "error.jsp";
+        	}
+        	
+        	$("#loading_img").css("display", "none");
+        },
+        error: function (req) {
+        	
+        	$("#loading_img").css("display", "none");
+        	
+        	var msg = getErrorMessage(req, emailConfig);
+        	//toastError("Failed", result, true);
+        	console.log("Error while configuring alert settings: " + msg);
+        	
+        	var fieldId = [];
+			var obj = {};
+			obj["id"] = "alert_common";
+			obj["message"] = msg;
+			obj["fieldName"] = "commonMsg";
+			obj["border"] ="false";
+				
+			fieldId.push(obj);
+			showError(fieldId);
+        }
+    });
+}
+
+/**
+ * This event will get trigger when modal is about to close
+ * 
+ * */
+$("#alert_settings_modal").on('hide.bs.modal', function (e) {
+	
+	// Remove all validation messages
+	removeAllErrors();
+});
+
+/**
+ * This event will get trigger when modal is about to show
+ * 
+ * */
+$("#alert_settings_modal").on('shown.bs.modal', function (e) {
+	
+	// Remove all validation messages
+	removeAllErrors();
+	
+	// bind the default values in the textbox
+	getAlertSettings();
+});
+
+function getAlertSettings() {
+	
+	$.ajax({
+        type: "GET",
+        url: thresholdURL,
+        cache: false,
+        data: {
+        	'a': encodeTxt('GCeasy')
+        },
+        success: function (result) {
+        	if(result){
+        		
+        		if(isHTML(result)) {
+        			
+        			//$("html").html(result);
+        			//location.href = "error.jsp";
+        			var doc = document.open("html/text", "replace");
+        			doc.write(result);
+        			doc.close();
+        		} else {
+        			
+        			var splitVal = result.split("#");
+            		$("#pausetime").val((splitVal[0]) ? splitVal[0] : 5.0);
+            		$("#throughput").val((splitVal[1]) ? splitVal[1] : 95.0);
+        		}
+        	} else {
+        		
+        		$("#pausetime").val(5.0);
+        		$("#throughput").val(95.0);
+        	}
+        },
+        error: function (req) {
+        	
+        	var msg = getErrorMessage(req, emailConfig);
+        	//toastError("Failed", result, true);
+        	console.log("Error while retrieving alert settings: " + msg);
+        }
+    });
+}

@@ -1,0 +1,728 @@
+/**
+ * 
+ */
+
+var bttn = { "text": "", "count": 0, "href": "", "onclick": ""};
+
+	
+function validateEmail(email) {
+
+	var filter = /^([A-Za-z0-9_\-\.\+])+@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,})$/;
+	var msg = null;
+    
+    if (!filter.test(email)) {
+    	
+    	msg = "Please enter valid email address";
+    }
+    
+    return msg;
+}
+
+function validatePassword (input) {
+	
+	var regex = /^(?=.*\d)(?=.*[!@#$%^&*])(?=.*[a-z])(?=.*[A-Z]).{6,20}$/;
+	var msg = null;
+	
+	if (regex.test(input) == false) {
+		msg = 'Please enter valid password.,Password must contains one digit from 0-9,One lowercase characters,One uppercase characters,One special symbols in the list "@#$%\",At least 6 characters and maximum of 20';
+    } 
+
+    return msg;
+}
+
+function getErrorMessage (req, supportEmail) {
+	
+	var msg = null;
+	if (req.status == 0) {
+		msg = "Status: " + req.status + ", Message: Please check your internet connection.";
+    } else if (req.status == 404) {
+    	msg = "Status: "+ req.status + ", Message: Requested URL not found. Please reach to "+supportEmail;
+    } else if (req.status == 500) {
+    	msg = "Status:" + req.status + ", Message: Internel Server Error. Please reach to " + supportEmail;
+    } else if (req.status == 400) {     
+    	msg = "Status: " + req.status + ", Message: Bad Request. Please reach to " + supportEmail;
+    } else {
+    	msg = "Status: " + req.status + ", Message: Unknown error - Please reach to " + supportEmail + " \n " +req.responseText;
+    }
+	
+	return msg;
+}
+
+function getURLParam(param) {
+	
+	try {
+		
+		//var queryString = window.location.search;
+		//var urlParams = new URLSearchParams(queryString);
+		
+		//return (urlParams) ? urlParams.get(param) : null;
+		
+		var results = new RegExp('[\?&]' + param + '=([^&#]*)').exec(window.location.href);
+	    if (results == null){
+	    	
+	       return "";
+	    }
+	    else {
+	    	
+	       return decodeURI(results[1]) || 0;
+	    }
+	} catch(e) {
+		
+		console.log("Failed to get parameter ${param} from URL due to: " + e.message);
+	}
+}
+
+function encodeTxt(input) {
+	
+	return (input) ? btoa(input) : null;
+}
+
+function decodeTxt(input) {
+	
+	return (input) ? atob(input) : null;
+}
+
+function getBttnClassName(appType) {
+
+	switch(appType) {
+	case "HeapHero":
+		return "heap-submit-bttn"
+	case "fastThread":
+		return "ft-submit-bttn";
+	default:
+		return "btn-submit";
+	}
+}
+function getConfirmationModalBtn(appType, bttn) {
+	var btnClass = getBttnClassName(appType);
+	if((bttn.count < 2)) {
+		
+		return "<div class=\"col-md-6 col-md-offset-3 col-sm-12 col-xs-12 text-center\">" +
+					"<a type=\"submit\" class=\""+btnClass+" btn-effect\" id=\"common_modal_btn\">"+bttn.text+"</a>" +
+				"</div>";
+						
+	} else {
+		
+		return  "<div class=\"col-md-4 col-md-offset-2 col-sm-6 col-xs-12 mob-m-b-20\">" +
+					"<button type=\"submit\" class=\"btn-submit btn-effect\" id=\"modal_yes_btn\">Yes, go ahead!</button>" +
+				"</div>" +
+				"<div class=\"col-md-4 col-sm-6 col-xs-12\">" +
+					"<button type=\"submit\" class=\"btn-submit btn-effect\" id=\"modal_no_btn\" data-dismiss=\"modal\">No, I am good!</button>" +
+				"</div>";
+	}
+}
+
+function buildModal(title, content, bttnObj, appType) {
+	
+	$("#common_modal_title").empty();
+	$("#common_content").empty();
+	$("#common_footer_btn").empty();
+	
+	var bttns = getConfirmationModalBtn(appType, bttnObj);
+	
+	// Appending title in the modal. If title is not there then appending default title
+	var titleMsg = (title) ? title : "Confirmation Message";
+	 $("#common_modal_title").text(titleMsg);
+	 
+	// Appending the mmodal body
+	$("#common_content").html(content);
+	
+	// Appending the buttons in the footer
+	if(bttnObj.count < 2) {
+		// If we want to display only one button in the modal
+		$("#common_footer_btn").append(bttns);
+		if (bttnObj.href) {
+			
+			 $("#common_modal_btn").attr("href", bttnObj.href)
+		} else if(bttnObj.onclick) {
+			
+			$("#common_modal_btn").attr("onclick", bttnObj.onclick);
+		} else {
+		
+			 $("#common_modal_btn").attr("data-dismiss", "modal");
+		}
+		
+		if(bttnObj.dataType) {
+			$("#common_modal_btn").attr("data-type", bttnObj.dataType);
+		}
+	} else {
+		// If we want to display two buttons in the modal
+		$("#common_footer_btn").append(bttns);
+		if((bttnObj.onclick)) {
+			$("#modal_yes_btn").attr("onclick", bttnObj.onclick);
+		}
+		if(bttnObj.dataType) {
+			$("#modal_yes_btn").attr("data-type", bttnObj.dataType);
+		}
+		
+		var noBtn = (appType.toLowerCase() === "gceasy") ? "modal-no-btn" : "ft-modal-no-btn";
+		
+		$("#modal_no_btn").addClass(noBtn);
+	}
+	
+	document.getElementById('open_common_modal').click();
+}
+
+/*
+ * Below code is used to change the user profile avatar icon in header
+ * when user scroll down.
+ * */
+/*$(window).scroll(function() {
+	
+	// Changing the user profile image when user scroll the page
+	if($(window).width() > 767) {
+		
+		var scroll = $(window).scrollTop();
+		if( scroll > 60 ){		
+			$("#dropdown img").attr("src", blackImg);
+			$(".dropdown-content>li:first-child").css("background-color", "#fff");
+			$(".dropdown-content>li:first-child").css("line-height", "13px");		
+		} else {
+			$("#dropdown img").attr("src", whiteImg);
+			$(".dropdown-content>li:first-child").removeAttr("style");
+		}
+	}
+});*/
+
+$(window).scroll(function() {
+	
+	// Changing the user profile image when user scroll the page
+	if($(window).width() > 767) {
+		
+		var scroll = $(window).scrollTop();
+		if( scroll > 60 ){		
+			$("#dropdown").css("color", "#000");
+			$(".dropdown-content>li:first-child").css("background-color", "#fff");
+			$(".dropdown-content>li:first-child").css("line-height", "13px");		
+		} else {
+			$("#dropdown").css("color", "#fff");
+			$(".dropdown-content>li:first-child").removeAttr("style");
+		}
+	}
+});
+
+/*
+ * This function is used to detect whether the given string contains HTML syntax or not
+ * */
+function isHTML(str) {
+	
+	if(str) {
+		return /<\/?[a-z][\s\S]*>/i.test(str);
+	}
+	
+	return false;
+}
+
+function getCaptchaScale(screen) {
+	
+	var scale = 1.35;
+
+    if(screen < 270) {
+    	scale = 0.75;
+    }
+    
+    if(screen > 270 && screen < 405) {
+    	scale = 1;
+    }
+    
+    if(screen > 405 && screen < 992) {
+    	scale = 1.27;
+    }
+    
+    if(screen > 991 && screen < 1200) {
+    	scale = 1.22;
+    }
+    
+    if(screen > 1199) {
+    	scale = 1.35;
+    }
+    
+    return scale;
+}
+
+/**
+ * This function is used to build the container for the error message
+ * */
+function buildErrorContainer() {
+	
+	/*var error = "<div class=\"row equal-col-height error-msg txt-left m-r-0 m-l-0\" id=\"\">" +
+					"<div class=\"col-md-1 col-sm-1 col-xs-3 img-container\">" +
+						"<i class=\"fa fa-times-circle font-20\" aria-hidden=\"true\"></i>" +
+					"</div>" +
+					"<div class=\"col-md-11 col-sm-11 col-xs-9\">" +
+						"<span class=\"\"></span>" +
+					"</div>" +
+				"</div>"; */
+	var error = "<div class=\"row equal-col-height error-msg txt-left m-r-0 m-l-0\" id=\"\">" +
+		"<div class=\"col-md-12 col-sm-12 col-xs-12 img-container\">" +
+			"<i class=\"fa fa-times-circle font-20\" aria-hidden=\"true\"></i>&nbsp;&nbsp;<span class=\"\"></span>" +
+		"</div>" +
+	"</div>";
+	
+	return error;
+}
+
+/**
+ * This function is used to show validation errors or general error
+ * messages on the screen
+ * 
+ * */
+function showError(arr) {
+	
+	for(var index in arr) {
+		
+		var id = arr[index].id;
+		var message = arr[index].message;
+		var fieldName = arr[index].fieldName;
+		var isRedBorderAllow = arr[index].border;
+		
+		if($("#" + id + "_err_msg").length > 0) {
+			
+			// 1. Build the container for error message
+			$("#" + id + "_err_msg").html(buildErrorContainer());
+			
+			// 2. Remove display-none from the DIV
+			$("#" + id + "_err_msg").removeClass("display-none");
+			
+			// 3. Add error message in the error container
+			$("#" + id + "_err_msg span").html(message);
+			
+			/*// Name filed
+			if(fieldName === "name") {
+				
+				$("#" + id + "_err_msg span").html(message);
+			}
+			
+			// Email field
+			if(fieldName === "email") {
+				
+				$("#" + id + "_err_msg span").html(message);
+			}
+			
+			// Password field
+			if(fieldName === "password") {
+				
+				$("#" + id + "_err_msg span").html(message);
+			}
+			
+			// Company Name field
+			if(fieldName === "companyName") {
+				
+				$("#" + id + "_err_msg span").html(message);
+			}
+			
+			// Common Message
+			if(fieldName === "commonMsg") {
+				
+				$("#" + id + "_err_msg span").html(message);
+			}*/
+		}
+		
+		// 4. Add red border line to the input fields
+		if($("#" + id).length > 0 && isRedBorderAllow === "true") {
+			$("#" + id).addClass("error-input-border");
+		}
+	}
+}
+
+/**
+ * This function is used to hide error messages on the screen
+ * 
+ * */
+function hideError(eleIds) {
+	
+	for(var i=0; i<=eleIds.length; i++) {
+		
+		if($("#" + eleIds[i] + "_err_msg").length > 0) {
+			$("#" + eleIds[i] + "_err_msg").addClass("display-none");
+		}
+		
+		if($("#" + eleIds[i]).length > 0) {
+			$("#" + eleIds[i]).removeClass("error-input-border");
+		}
+	}
+}
+
+/**
+ * This function is used to remove the red border line from the multiple input
+ * 
+ * */
+/*function removeErrorBorderLine() {
+	
+	var elements = document.querySelectorAll('.error-input-border');
+	
+	for (var i = 0; i < elements.length; i++) {
+		elements[i].classList.remove("error-input-border");
+	}
+}*/
+
+/**
+ * This function is used to removed all validation messages present on the current page
+ * 
+ * */
+function removeAllErrors() {
+	
+	// Removing all validation messages
+	$(".error-msg").parent().each(function() {    
+	    $("#" + this.id).addClass("display-none");
+	});
+	
+	// Removing red border from all fields present on the current page
+	$(".error-input-border").each(function() {    
+	    $("#" + this.id).removeClass("error-input-border");
+	});
+	
+	/*var elements = document.querySelectorAll('.error-input-border');
+	
+	for (var i = 0; i < elements.length; i++) {
+		elements[i].classList.remove("error-input-border");
+	}*/
+}
+
+function isEmpty(str) {
+	
+	return str === null || str === undefined || str.match(/^ *$/) !== null;
+}
+
+/**
+ * This function will trigger when user move mouse.
+ * Using this event to close toaster messages.
+ * 
+ * */
+/*$(document).mousemove(function(event){
+	
+	// Check if toaster message exist on the screen or not
+	// If it is present then close it after 2 seconds when the user move mouse cursor
+	if($(".jq-toast-wrap")[0]) {
+		
+		setTimeout(function() {
+			$.toast().reset('all');
+		}, 2000);
+	}
+});*/
+/**
+ * 
+ * This function is used to scroll the page on top.
+ * */
+function scrollToTop() {
+	window.scrollTo(0,0);
+}
+/**
+ * 
+ * This function is used to add logger in Expert button feature.
+ * @param message
+ * @returns
+ */
+function expertLogger(message) {
+	 
+	$.ajax({
+        type : "POST",
+        url : "./expert-button-logger",
+        data: {
+        	
+        	'msg': message
+        },
+            
+        success: function(){
+        	
+        },
+        error : function(req, status, err) {
+        	
+			console.log("Error while adding logger: " + msg);
+		}
+    });
+}
+
+function isTestEmail(email) {
+	
+	try {
+		
+		// -------------------------------------------------------------------------------------
+		//	NOTE: If you are adding/modifying test email addresses then make to sure to
+		//  add/update the same in isTestEmail() function defined in common.js.
+		//  If its test email then we skip captcha validation on server-side. Similarly we do
+		//  skip cpatcha validation on client side using isTestEmail() function.
+		// -------------------------------------------------------------------------------------
+		
+		return (email === "ycrashapp@yahoo.com" || email == "ycrashtest@proton.me"|| email === "ycrashcloudtestingteam@proton.me");
+	} catch(e) {
+		
+		console.log("Error while checking if email id is test id - " + e);
+	}
+}
+
+
+function isContainSpecialChar(str) {
+
+	var format = /[`!@#$%^&*()_+\=\[\]{};':"\\|.<>\/?~]/;
+	
+	return format.test(str);
+}
+
+/**
+ * This function is used to check whether the input string contains dash in first character.
+ * 
+ * */
+function isFirstCharDash(str) {
+	
+	var dash = "-";
+	if((str.slice(0, 1) === dash)) {
+		return true;
+	}
+	
+	return false;
+}
+
+/**
+ * This function is used to check whether the input string contains dash in last character.
+ * 
+ * */
+function isLastCharDash(str) {
+	
+	var dash = "-";
+	
+	if((str.slice(-1) === dash)) {
+		
+		return true;
+	}
+	
+	return false;
+}
+
+/**
+ * This function is used to check whether the input string contains dash in as first or last character
+ * 
+ * */
+function removeDash(str) {
+	
+	var data = str;
+	if(!str) {
+		
+		return "";
+	}
+	
+	while(isFirstCharDash(data)) {
+		
+		data = data.replace(/^-/, '');
+	}
+	
+	while(isLastCharDash(data)) {
+		data = data.replace(/\-$/, "");
+	}
+	
+	return data;
+}
+
+//Remove chip
+$(document).on('click','.closebtn',function() {
+  $(this).parent().remove(); 
+  
+  // If no tags/chips are present in input then removing placeholder
+  if($(".chips").children(".taginputs").length == 0) {
+	  $(".chips").children("input").attr("placeholder", "e.g. tag1, tag2")
+  }
+  
+  if($(".chips .edit-taginput").children(".taginputs").length == 0) {
+	  $(".chips .edit-taginput").children("input").attr("placeholder", "e.g. tag1, tag2")
+  }
+});
+
+
+
+function tagKeydown(event) {
+	
+	// If user press backspace then remove chips
+    // keycode = 8(backspace)
+    if(event.keyCode === 8) {
+    	
+    	var selectionStartVal = "";
+    	if(event.target.value) {
+    		selectionStartVal = event.target.value[event.target.selectionStart - 1];
+    	} 
+    	
+    	// Check any tags are present in input box or not
+    	// If tags are present and BACKSPACE is press then remove the last tag from the input box.
+    	if(($("#" + event.target.id).parent().children('div').length > 0 || $("#" + event.target.id).val().trim() === "") && selectionStartVal.length === 0) {
+			$("#" + event.target.id).parent().children('div').last().remove();
+		}
+    	
+    	if($(".chips").children(".taginputs").length == 0) {
+    		  $(".chips").children("input").attr("placeholder", "e.g. tag1, tag2")
+    	 }
+    }
+}
+
+//Insert new chip
+function tagKeyup(event) {
+	
+	// Get the value from target
+    var data = event.target.value;
+	var $this = event.target; 
+	//var data = this.value;
+    
+    // Check if the input value contains special characters
+    if(isContainSpecialChar(data)) {
+    	
+    	var fieldIds = [];
+    	
+		var obj = {};
+		obj["id"] = "input_tags";
+		obj["message"] = "Please enter valid tag. Special characters are not allowed.";
+		obj["fieldName"] = "comment";
+		obj["border"] ="true";
+		
+		fieldIds.push(obj);
+		
+		showError(fieldIds);
+		return false;
+    }
+    
+    // If user press enter or space or comma or tab then automatically it will add chips 
+    // keycode = 13(enter) , keyCode = 32(space), keycode =188(comma) , keycode = 9(tab)
+    if ((event.keyCode === 13 || event.keyCode === 32 || event.keyCode === 188 || event.keyCode === 9)) {
+    	
+    	 // For safety purpose removing special characters from string
+    	data = data.replaceAll(/[`!@#$%^&*()_+\=\[\]{};' ,:"\\|.<>\/?~]/gi, '');
+        
+        // If the first or last char is dash then removing it
+    	data = removeDash(data);
+    	
+    	if(data.trim() === "") {
+    		
+    		var fieldIds = [];
+	
+			var obj = {};
+			obj["id"] = "input_tags";
+			obj["message"] = "Please enter valid tag";
+			obj["fieldName"] = "comment";
+			obj["border"] ="true";
+			
+			fieldIds.push(obj);
+			
+			showError(fieldIds);
+    		return false;
+    	}
+    	
+    	// Removing all spaces from the string
+    	var withOutSpace = data.replaceAll(/\s/g,'');
+    	
+    	if(withOutSpace.length > 20) {
+    		
+    		var fieldIds = [];
+    		
+			var obj = {};
+			obj["id"] = "input_tags";
+			obj["message"] = "Maximum 20 characters are allowed.";
+			obj["fieldName"] = "comment";
+			obj["border"] ="true";
+			
+			fieldIds.push(obj);
+			
+			showError(fieldIds);
+    		return false;
+    	}
+    	
+    	//To remove comma from last character
+    	//data = (event.keyCode === 188) ? data.substring(0, data.length-1) : data;
+    	$( '<div class="chip taginputs"> '+withOutSpace.toLowerCase()+' <span class="closebtn" >&times;</span></div>' ).insertBefore($this);
+    	$($this).val("");
+    	
+    	// Removing placeholder if tag input box has text in it
+        if((withOutSpace) && withOutSpace !== "") {
+        	
+        	//$(this).attr('placeholder','');
+        	$this.removeAttribute("placeholder");
+        }
+    }
+    
+    var ids = [];
+	ids.push(event.target.id);
+	ids.push("input_tags");
+	
+	hideError(ids);
+}
+
+/**
+ * This function is used to build the edit tag input field for Edit tag modal.
+ * @param tagName
+ * @returns
+ */
+function buildEditTagContent(tagName) {
+	
+	var tags = tagName.trim().split(",");
+	var content = "";
+	content = content + "<div class=\"chips chips-initial input-field\">";
+	tags.forEach(function(tag) {
+		
+		content = content + '<div class="chip taginputs">'+tag+ '<span class="closebtn">&times;</span></div>'
+       
+	});
+	
+	var inputBox = ' <input type="text" class="chip-input" id="input_tags" placeholder="e.g. tag1, tag2" maxlength="20" style ="border-bottom: 3px solid #fff !important;" onKeyUp="tagKeyup(event)" onkeydown="tagKeydown(event)">';
+	if(tags.length > 0) {
+		
+		inputBox = ' <input type="text" class="chip-input" id="input_tags" placeholder="" maxlength="20" style ="border-bottom: 3px solid #fff !important;" onKeyUp="tagKeyup(event)" onkeydown="tagKeydown(event)">';
+	}
+	content = content + inputBox + "</div><div class=\"display-none m-b-5 m-t-5 font-14\" id=\"input_tags_err_msg\"></div><label class = \"modal-text-margin\">Note: Separate with comma, space or ENTER key. Special characters are not allowed in tag.</label>";
+	
+	return content;
+}
+
+/**
+ This function will trigger When signin modal is open.
+ Issue : After signing up, when user click on 'Send Again' link, resent message is not displayed on the page. Instead that message is displayed on Sign in popup.
+ This issue is happening because we are using common resend() JS function in in signup page as well as signin modal.
+ When we do signUp background signin code also present. Using "id" atrribute we are not able to differentiate its coming from signUp page or signIn popup.
+ Fix: When signin modal is opened, we are setting custom attribute in div. When signin modal is closed, we are removing the custom attribute.
+ Now resend ajax function call using this custom attribute differentiating its from signUp page /SignIn popup.
+ */
+$("#signin_modal").on('shown.bs.modal', function (e) {
+
+    //set attribute from div
+    $("#signin-verification-link-sent").attr("data-resend-from", "signin");
+});
+
+/**
+ This function will trigger When signin modal is closed
+ */
+$("#signin_modal").on('hide.bs.modal', function (e) {
+
+    //Remove attribute from div
+    $("#signin-verification-link-sent").removeAttr("data-resend-from");
+});
+
+/*function validateName(name) {
+    var nameRegex = /^[a-zA-Z0-9\s]+$/;
+    var emailRegex = /^([A-Za-z0-9_\-\.\+])+@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,})$/;
+    var msg = null;
+
+    if (emailRegex.test(name)) {
+        msg = "Name cannot be an email address.";
+    } else if (!nameRegex.test(name)) {
+        msg = "Name should only contain letters, numbers, and spaces.";
+    }
+
+    return msg;
+}*/
+
+function validateInput(inputValue) {
+	
+	var trimmedValue = inputValue.trim(); // Remove spaces from both ends
+    //var nameRegex = /^[a-zA-Z0-9\s]+$/;
+    var emailRegex = /^([A-Za-z0-9_\-\.\+])+@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,})$/;
+	var consecutiveSpecialCharsRegex = /[^a-zA-Z0-9\s]{2,}/; // Checks for two or more consecutive special characters
+    
+	if (trimmedValue === "") {
+        return "Field cannot be empty or contain only spaces.";
+    }
+     if (emailRegex.test(trimmedValue)) {
+        return "Field cannot be an email address.";
+    }
+	if (consecutiveSpecialCharsRegex.test(trimmedValue)) {
+        return "Field cannot contain consecutive special characters.";
+    }
+    /*if (!nameRegex.test(trimmedValue)) {
+        return "Field should only contain letters, numbers, and spaces.";
+    }*/
+    return null;
+}

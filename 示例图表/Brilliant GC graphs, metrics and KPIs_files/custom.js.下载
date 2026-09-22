@@ -1,0 +1,146 @@
+// --------------------------------------------------------
+// Pretty Photo for Lightbox Image
+// --------------------------------------------------------
+$(document).ready(function() {
+    $("a[data-gal^='prettyPhoto']").prettyPhoto();
+});
+
+// --------------------------------------------------------
+//	Navigation Bar
+// --------------------------------------------------------
+$(window).scroll(function(){
+	"use strict";
+	
+	var scroll = $(window).scrollTop();
+	
+	if (typeof path !== 'undefined') {
+	
+		if( scroll > 60 ){
+			$(".navbar").addClass("scroll-fixed-navbar");
+			$("#fastthread-new-logo").attr("src",path+"assets/yc-images/fastthread-new-logo.svg");
+			$("#gceasy-new-logo").attr("src",path+"assets/yc-images/gceasy-new-logo.svg");
+	
+		} else if(window.innerWidth < 767 ){
+			$("#gceasy-new-logo").attr("src",path+"assets/yc-images/gceasy-new-logo.svg");
+			$("#fastthread-new-logo").attr("src",path+"assets/yc-images/fastthread-new-logo.svg");
+		} else {
+			$(".navbar").removeClass("scroll-fixed-navbar");
+			$("#fastthread-new-logo").attr("src",path+"assets/fastthread/images/ft-white-new-logo.svg");
+			$("#gceasy-new-logo").attr("src",path+"assets/yc-images/gc-white-new-logo.svg");
+		}	
+	}
+});
+
+// --------------------------------------------------------
+//	Smooth Scrolling
+// --------------------------------------------------------
+$(".navbar-nav li a[href^='#']").on('click', function(e) {
+    e.preventDefault();
+    $('html, body').animate({
+        scrollTop: $(this.hash).offset().top
+    }, 1000);
+});
+
+function isTypeString(str) {
+
+	return (typeof str === "string");
+}
+
+// --------------------------------------------------------
+//	Google sign in button
+// --------------------------------------------------------
+var googleClientLoaded = false;
+function loadGoogleClient(){
+	if (typeof google === 'undefined') {
+		var script = document.createElement('script');
+		script.src = "https://accounts.google.com/gsi/client";
+		script.defer = true;
+
+		script.onload = function() {
+			if (typeof google !== 'undefined') {
+				$(document).trigger('googleScriptLoaded');
+				googleClientLoaded = true;
+			}
+		};
+		document.head.appendChild(script);
+	}
+	else{
+		initGoogleSignIn()
+	}
+}
+var googleSignInInit= false
+function initGoogleSignIn(){
+	if(!googleSignInInit && $('.btn-signin-google').length) {
+		// Get client id
+		var googleClientId = $('.btn-signin-google').attr('data-client-id');
+		// Create hidden container that will hold generated button
+		var googleLoginWrapper = $('<div class="hidden-generated-content"></div>');
+		$('body').append(googleLoginWrapper);
+
+		// Init with google
+		google.accounts.id.initialize({
+			client_id: googleClientId,
+			callback: handleCredentialResponse,
+		});
+		// Trigger one tap
+		google.accounts.id.prompt();
+
+		// Render the default button
+		google.accounts.id.renderButton(googleLoginWrapper[0], {
+			type: "icon",
+			width: "200",
+		});
+
+		// Store original generated button's data
+		googleLoginWrapper.data('googleLoginButton', googleLoginWrapper.find("div[role='button']"));
+
+		var googleButton = googleLoginWrapper.find("div[role='button']");
+
+		// Trigger default button when clicked on custom button
+		$(document).on('click', '.btn-signin-google', function () {
+			$('.btn-signin-google').removeClass('active')
+			$(this).addClass('active')
+			if (googleButton.length) {
+				googleButton.click();
+			}
+		})
+
+		googleSignInInit = true
+	}
+}
+window.addEventListener('load', function (event) {
+	loadGoogleClient()
+});
+
+$(document).on('googleScriptLoaded', function() {
+	initGoogleSignIn()
+});
+
+var publicEmailRegex = /^([A-Za-z0-9_\-\.])+\@((hotmail)|(yahoo)|(gmail)|(rediff))+\.([A-Za-z]{2,4})$/;
+
+function validateCorporateEmail(email) {
+	return !publicEmailRegex.test(String(email).toLowerCase());
+}
+
+// --------------------------------------------------------
+// Share report modal
+// --------------------------------------------------------
+
+$('#btn-share').click(function (){
+	$('#modal-share-report').jqmodal()
+})
+
+$(window).scroll(function() {
+			
+	if($(window).width() > 767) {
+				
+		var scroll = $(window).scrollTop();
+		if( scroll > 60 ){		
+			$("#customer-dropdown").css("color", "#000");
+			$("#learn-dropdown").css("color", "#000");
+		} else {
+			$("#customer-dropdown").css("color", "#fff");
+			$("#learn-dropdown").css("color", "#fff");
+		}
+	}
+});

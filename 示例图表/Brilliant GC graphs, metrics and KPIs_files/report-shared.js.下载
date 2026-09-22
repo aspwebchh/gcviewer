@@ -1,0 +1,279 @@
+/*
+    Plugin dependencies
+    - globally-shared/js/plugins/jquery.modal-df-namespace.js
+    - globally-shared/js/plugins/validator.min.js
+    - globally-shared/js/plugins/tagify.min.js
+    - globally-shared/js/plugins/tagify.polyfills.min.js
+    - globally-shared/js/plugins/overlayscrollbars.browser.es6.min.js
+      or yc-js/jquery.overlayScrollbars.min.js
+*/
+
+//
+// Share Modal
+//
+
+// Init email input tagify
+emailShareInput = $('#input-share-email')
+removeErrorsOnChange(emailShareInput, true);
+var shareEmailTags = initEmailTagInput(emailShareInput)
+
+// Set visibility text depending on the option selected
+function checkSelectedVisibility() {
+    var modal = $('#modal-share-report')
+    modal.find('.share-visibility-selected').empty();
+    modal.find('.share-visibility-selected').html(modal.find('label[for="' + $('input[name="share-visibility-radio"]:checked').attr('id') + '"').html());
+    var selectedSvg = modal.find('.share-visibility-selected').find('svg');
+    selectedSvg.attr({
+        width: selectedSvg.attr('data-width'),
+        height: selectedSvg.attr('data-height')
+    })
+}
+
+checkSelectedVisibility()
+
+// Visibility options popup
+enablePopup($('#modal-share-report').find('.share-visibility-selected'),
+    $('#modal-share-report').find('.visibility-list'),
+    {
+        afterClose: function () {
+            checkSelectedVisibility()
+        },
+    }
+)
+
+window.addEventListener('load', function (event) {
+// Show and enable custom scroll on shared people list when it's populated
+    if ($('#shared-people-list li').length) {
+        $('#shared-people-list-line').removeClass('hidden')
+        if($('#modal-share-report').hasClass('modal-hh')){
+            $("#shared-people-list").overlayScrollbars({
+                className : "os-theme-dark",
+                scrollbars : {
+                    autoHide: "move"
+                }
+            });
+        }
+        else{
+            OverlayScrollbars($('#shared-people-list')[0], {
+                className: "os-theme-dark"
+            });
+        }
+    }
+});
+
+// This function is used when user click on share button from share-report modal.
+function shareReport() {
+    var type = "report-share";
+    var emailId = emailShareInput.val();
+    var sharingType = $('input[name="share-visibility-radio"]:checked').val();
+    let ou = getURLParam("ou");
+    let de = getURLParam("de");
+    let ts = getURLParam("ts");
+    var reportUrl = $('#btn-copy-share-link').attr('data-href');
+    let analysisTime = $('#analysis-time').text();
+    let appName = $('#breadcrumbName').text();
+
+    if (validator.isEmpty(emailId) && shareEmailTags.validateTags()) {
+        $.jqmodal.close()
+    } else {
+        clearErrors($('#modal-share-report'))
+        enableButtonProgress($('#btn-share-link-submit'))
+        disableForm($('#form-share-report'))
+        freezeModal($('#modal-share-report'))
+
+        var validated = true;
+
+        if (shareEmailTags.validateTags()) {
+            $.ajax({
+                type: "POST",
+                url: "./yc-report-share",
+                data: {
+                    "emailId": emailId,
+                    "type": type,
+                    "sharingType": sharingType,
+                    "ou": ou,
+                    "de": de,
+                    "ts": ts,
+                    "appName": appName,
+                    "analysisTime": analysisTime,
+                    "reportUrl": reportUrl
+                },
+                success: function (response) {
+                    disableButtonProgress($('#btn-share-link-submit'))
+                    enableForm($('#form-share-report'))
+                    unfreezeModal($('#modal-share-report'))
+
+                    if (response.status) {
+                        //close share report modal
+                        $.jqmodal.close();
+
+                        //display success message in modal
+                        $('#modal-share-report-successful').jqmodal();
+
+                        setTimeout(function () {
+                            window.location.reload(true);
+                        }, 1500);
+                    } else {
+                        showNotification($('#modal-share-report .buttons-container'), response.message, {
+                            id: 'nMGlobal',
+                            type: 'box',
+                            insert: 'before',
+                            hasIcon: true
+                        });
+                    }
+                },
+                error: function (err) {
+                    disableButtonProgress($('#btn-share-link-submit'))
+                    enableForm($('#form-share-report'))
+                    unfreezeModal($('#modal-share-report'))
+                    showNotification($('#modal-share-report .buttons-container'), "There was a problem. Please try again.", {
+                        id: 'nMServer',
+                        type: 'box',
+                        insert: 'before',
+                        hasIcon: true
+                    });
+                    console.log("Failed to share Report -" + err);
+                }
+            });
+
+        } else {
+            disableButtonProgress($('#btn-share-link-submit'))
+            enableForm($('#form-share-report'))
+            unfreezeModal($('#modal-share-report'))
+
+            showNotification($('#modal-share-report .buttons-container'), "Submission failed. Please check your details", {
+                id: 'nMGlobal',
+                type: 'box',
+                insert: 'before',
+                hasIcon: true
+            });
+        }
+    }
+}
+
+// Clear errors and inputs on modal close
+$('#modal-share-report').on($.jqmodal.AFTER_CLOSE, function () {
+    shareEmailTags.getTagifyInstance().removeAllTags();
+    shareEmailTags.resetAllEmails();
+    clearErrors($(this))
+});
+
+// This function is used when user click on copy button from share-report modal.
+function copyLink() {
+    clearErrors($('#modal-share-report'))
+    disableForm($('#form-share-report'))
+    freezeModal($('#modal-share-report'))
+    var type = "copy-link";
+    var emailId = "";
+    var sharingType = $('input[name="share-visibility-radio"]:checked').val();
+    let ou = getURLParam("ou");
+    let de = getURLParam("de");
+    let ts = getURLParam("ts");
+    var reportUrl = $('#btn-copy-share-link').attr('data-href');
+
+    $.ajax({
+        type: "POST",
+        url: "./yc-report-share",
+        data: {
+            "emailId": emailId,
+            "type": type,
+            "sharingType": sharingType,
+            "ou": ou,
+            "de": de,
+            "ts": ts,
+            "reportUrl": reportUrl
+        },
+        success: function (response) {
+            enableForm($('#form-share-report'))
+            unfreezeModal($('#modal-share-report'))
+            if (response.status) {
+                var $temp = $("<input>");
+                var $url = response.results;
+
+                $("#modal-share-report").append($temp);
+                $temp.val($url).select();
+                document.execCommand("copy");
+                $temp.remove();
+
+                // Display success message
+                showToast("Link Copied", "Link copied to clipboard")
+
+            } else {
+                showNotification($('#modal-share-report .buttons-container'), response.message, {
+                    id: 'nMServer',
+                    type: 'box',
+                    insert: 'before',
+                    hasIcon: true
+                });
+            }
+        },
+        error: function (err) {
+            enableForm($('#form-share-report'))
+            unfreezeModal($('#modal-share-report'))
+            showNotification($('#modal-share-report .buttons-container'), "There was a problem. Please try again.", {
+                id: 'nMGlobal',
+                type: 'box',
+                insert: 'before',
+                hasIcon: true
+            });
+            console.log("Failed to copy link - " + err);
+        }
+    });
+}
+
+$('#btn-copy-share-link').click(copyLink)
+
+// This function is used when user click on revoke-access button from share-report modal.
+function revokeShareAccess(emailId, reportId, elem) {
+    clearErrors($('#modal-share-report'))
+    enableButtonProgress(elem)
+    disableForm($('#form-share-report'))
+    freezeModal($('#modal-share-report'))
+    var type = "revoke-email";
+
+    $.ajax({
+        type: "POST",
+        url: "./yc-report-share",
+        data: {
+            "emailId": emailId,
+            "reportId": reportId,
+            "type": type
+        },
+        success: function (response) {
+            if (response.status) {
+                setTimeout(function () {
+                    window.location.reload(true);
+                }, 1500);
+
+            } else {
+                disableButtonProgress(elem)
+                enableForm($('#form-share-report'))
+                unfreezeModal($('#modal-share-report'))
+
+                showNotification($('#modal-share-report .buttons-container'), response.message, {
+                    id: 'nmServer',
+                    type: 'box',
+                    insert: 'before',
+                    hasIcon: true
+                });
+            }
+        },
+        error: function (err) {
+            disableButtonProgress(elem)
+            enableForm($('#form-share-report'))
+            unfreezeModal($('#modal-share-report'))
+            showNotification($('#modal-share-report .buttons-container'), "There was a problem. Please try again.", {
+                id: 'nMServer',
+                type: 'box',
+                insert: 'before',
+                hasIcon: true
+            });
+            console.log("Failed to revoke access - " + err);
+        }
+    });
+}
+
+$('#modal-share-report').on('click', '.btn-revoke-share', function () {
+    revokeShareAccess($(this).attr('data-revoke-email'), $(this).attr('data-revoke-report'), $(this))
+})
+var ycBuddyRedirectUrl = new URL("yc-buddy-context", window.location.href)

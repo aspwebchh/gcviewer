@@ -1,0 +1,145 @@
+/**
+ * 
+ */
+
+function getMessage(text) {
+		
+	if(text.indexOf(',') > -1) {
+		
+		return text.split(",");
+	}
+	
+	return text;
+}
+
+function toastSuccess(title, msg, isMultiPoints) {
+	
+	var header = ((title) && title !== "null") ? title : "Success";
+	var content = (isMultiPoints) ? getMessage(msg) : msg;
+	
+	$.toast({
+	    text: content, // Text that is to be shown in the toast
+	    heading: header, // Optional heading to be shown on the toast
+	    icon: 'success',
+	    showHideTransition: 'fade', // fade, slide or plain
+	    allowToastClose: true, // Boolean value true or false
+	    hideAfter: 5000, // false to make it sticky or number representing the miliseconds as time after which toast needs to be hidden
+	    stack: 1, // false if there should be only one toast at a time or a number representing the maximum number of toasts to be shown at a time
+	    position: 'top-right', // bottom-left or bottom-right or bottom-center or top-left or top-right or top-center or mid-center or an object representing the left, right, top, bottom values
+	    
+	    bgColor: '#4caf50',
+	    textColor: 'white',
+	    textAlign: 'left',  // Text alignment i.e. left, right or center
+	    loader: true,  // Whether to show loader or not. True by default
+	    loaderBg: '#37793f',  // Background color of the toast loader
+	    beforeShow: function () {}, // will be triggered before the toast is shown
+	    afterShown: function () {}, // will be triggered after the toat has been shown
+	    beforeHide: function () {}, // will be triggered before the toast gets hidden
+	    afterHidden: function () {}  // will be triggered after the toast has been hidden
+	});
+}
+
+function toastError(title, msg, isMultiPoints) {
+	
+	var header = ((title) && title !== "null") ? title : "Success";
+	var content = (isMultiPoints) ? getMessage(msg) : msg;
+	
+	$.toast({
+	    text: content, // Text that is to be shown in the toast
+	    heading: header, // Optional heading to be shown on the toast
+	    icon: 'error',
+	    showHideTransition: 'fade', // fade, slide or plain
+	    allowToastClose: true, // Boolean value true or false
+	    hideAfter: 5000, // false to make it sticky or number representing the miliseconds as time after which toast needs to be hidden
+	    stack: 1, // false if there should be only one toast at a time or a number representing the maximum number of toasts to be shown at a time
+	    position: 'top-right', // bottom-left or bottom-right or bottom-center or top-left or top-right or top-center or mid-center or an object representing the left, right, top, bottom values
+	    
+	    bgColor: '#e51c23',
+	    textColor: 'white',
+	    textAlign: 'left',  // Text alignment i.e. left, right or center
+	    loader: true,  // Whether to show loader or not. True by default
+	    loaderBg: 'rgb(169, 5, 2)',  // Background color of the toast loader
+	    beforeShow: function () {}, // will be triggered before the toast is shown
+	    afterShown: function () {}, // will be triggered after the toast has been shown
+	    beforeHide: function () {}, // will be triggered before the toast gets hidden
+	    afterHidden: function () {}  // will be triggered after the toast has been hidden
+	});
+}
+
+function toastInfo(title, msg, isMultiPoints) {
+	
+	var header = ((title) && title !== "null") ? title : "Success";
+	var content = (isMultiPoints) ? getMessage(msg) : msg;
+	
+	$.toast({
+	    text: content, // Text that is to be shown in the toast
+	    heading: header, // 'Info' Optional heading to be shown on the toast
+	    icon: 'info',
+	    showHideTransition: 'fade', // fade, slide or plain
+	    allowToastClose: true, // Boolean value true or false
+	    hideAfter: false, // false to make it sticky or number representing the miliseconds as time after which toast needs to be hidden
+	    stack: 1, // false if there should be only one toast at a time or a number representing the maximum number of toasts to be shown at a time
+	    position: 'top-right', // bottom-left or bottom-right or bottom-center or top-left or top-right or top-center or mid-center or an object representing the left, right, top, bottom values
+	    
+	    bgColor: '#9c27b0',
+	    textColor: 'white',
+	    textAlign: 'left',  // Text alignment i.e. left, right or center
+	    loader: true,  // Whether to show loader or not. True by default
+	    loaderBg: '#9EC600',  // Background color of the toast loader
+	    beforeShow: function () {}, // will be triggered before the toast is shown
+	    afterShown: function () {}, // will be triggered after the toat has been shown
+	    beforeHide: function () {}, // will be triggered before the toast gets hidden
+	    afterHidden: function () {}  // will be triggered after the toast has been hidden
+	});
+}
+
+function toastWarning(title, msg, isMultiPoints) {
+	
+	var header = ((title) && title !== "null") ? title : "Success";
+	var content = (isMultiPoints) ? getMessage(msg) : msg;
+	
+	$.toast({
+	    text: content, // Text that is to be shown in the toast
+	    heading: header, // 'Warning' Optional heading to be shown on the toast
+	    icon: 'warning', // Type of toast icon
+	    showHideTransition: 'fade', // fade, slide or plain
+	    allowToastClose: true, // Boolean value true or false
+	    hideAfter: false, // false to make it sticky or number representing the miliseconds as time after which toast needs to be hidden
+	    stack: 1, // false if there should be only one toast at a time or a number representing the maximum number of toasts to be shown at a time
+	    position: 'top-right', // bottom-left or bottom-right or bottom-center or top-left or top-right or top-center or mid-center or an object representing the left, right, top, bottom values
+	    
+	    bgColor: '#4caf50',
+	    textColor: 'white',
+	    textAlign: 'left',  // Text alignment i.e. left, right or center
+	    loader: true,  // Whether to show loader or not. True by default
+	    loaderBg: '#9EC600',  // Background color of the toast loader
+	    beforeShow: function () {}, // will be triggered before the toast is shown
+	    afterShown: function () {}, // will be triggered after the toat has been shown
+	    beforeHide: function () {}, // will be triggered before the toast gets hidden
+	    afterHidden: function () {}  // will be triggered after the toast has been hidden
+	});
+}
+
+function paymentHistoryInfo(msg, title) {
+	
+	$.toast({
+	    text: getMessage(msg), // Text that is to be shown in the toast
+	    heading: title, // Optional heading to be shown on the toast
+	    icon: 'info',
+	    showHideTransition: 'fade', // fade, slide or plain
+	    allowToastClose: true, // Boolean value true or false
+	    hideAfter: false, // false to make it sticky or number representing the miliseconds as time after which toast needs to be hidden
+	    stack: 5, // false if there should be only one toast at a time or a number representing the maximum number of toasts to be shown at a time
+	    position: 'top-center', // bottom-left or bottom-right or bottom-center or top-left or top-right or top-center or mid-center or an object representing the left, right, top, bottom values
+	    
+	    bgColor: '#17a2b8',
+	    textColor: 'white',
+	    textAlign: 'left',  // Text alignment i.e. left, right or center
+	    loader: true,  // Whether to show loader or not. True by default
+	    loaderBg: '#9EC600',  // Background color of the toast loader
+	    beforeShow: function () {}, // will be triggered before the toast is shown
+	    afterShown: function () {}, // will be triggered after the toat has been shown
+	    beforeHide: function () {}, // will be triggered before the toast gets hidden
+	    afterHidden: function () {}  // will be triggered after the toast has been hidden
+	});
+}

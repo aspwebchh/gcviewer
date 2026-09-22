@@ -1,0 +1,261 @@
+	
+	/**
+	 * Function is used to open the common modal when the user clicks on
+	 * the Add tag button in the diamondGC report page and fastThread report page
+	 * 
+	 * @param reportType: If user is adding tag from gc_report OR ft_report then reportType is null.
+	 * If user is adding tag from web/api upload table then reportType is WEB/API.
+	 * */
+	function addTag(reportId, reportType) {
+		
+		var title = tagTitle;
+		var description = "<div class=\"chips chips-initial input-field\"><input class=\"chip-input\" type=\"text\" id=\"input_tags\" placeholder=\"e.g. tag1, tag2\" maxlength=\"20\" onKeyUp=\"tagKeyup(event)\" onkeydown=\"tagKeydown(event)\"></div><div class=\"display-none m-b-5 m-t-5 font-14\" id=\"input_tags_err_msg\"></div>" +
+		"<label class = \"modal-text-margin\">"+tagNote+"</label>";
+		var btn = { "text": "Add", "count": 1, "onclick":"addEditTags("+reportId+", '"+reportType+"', 'add')", "href": ""};
+		
+		buildModal(title, description, btn, appName);
+	}
+	
+
+	/**
+	 * Function is used to open the common modal when the user clicks on
+	 * the Edit tag button in the diamondGC report page and fastThread report page
+	 * 
+	 * @param reportType: If user is adding tag from gc_report OR ft_report then reportType is null.
+	 * If user is adding tag from web/api upload table then reportType is WEB/API.
+	 * */
+	
+	function editTag(reportId, tags, reportType) {
+		
+		var title = tagEditTitle;
+		var description = buildEditTagContent(tags);
+		var btn = { "text": "Edit", "count": 1, "onclick":"addEditTags("+reportId+", '"+reportType+"', 'edit')", "href": ""};
+		buildModal(title, description, btn, appName);
+	}
+	
+	/**
+	 * This function is used to validate tag input field.
+	 * */
+	function addTagValidateInput(tags) {
+		
+		var fieldIds = [];
+		
+		if(!tags) {
+			
+			var obj = {};
+			obj["id"] = "input_tags";
+			obj["message"] = emptyTags;
+			obj["fieldName"] = "";
+			
+			fieldIds.push(obj);
+		}
+		
+		return fieldIds;
+	}
+
+	/**
+	 * This ajax function will call TagReportServlet to update tag values in DB.
+	 * 
+	 * @param reportId : reportId is unique for each row in dashboard table.
+	 * @param reportType: If user is adding tag from gc_report OR ft_report then reportType is null.
+	 * If user is adding tag from web/api upload table then reportType is WEB/API.
+	 * 
+	 * @returns
+	 */
+	function addEditTags(reportId, reportType, type) {
+		
+		var tags = $(".taginputs").text().split("×").join(",");
+		tags = tags.substring(0, tags.length - 1);
+		
+		// Validate tag input field
+		if(type === 'add') {
+			var invalidFieldIds = addTagValidateInput(tags);
+			if(invalidFieldIds.length > 0) {
+				
+				// Show error message
+				showError(invalidFieldIds);
+				
+				return false;
+			}
+		}
+		$("#loading_img").css("display", "block");
+
+		$.ajax({
+			type : "POST",
+			url : "./tag-report",
+			data: {
+				'reportId' : reportId,
+				'tags': tags,
+				'a' : encodeTxt(appName)
+	        },
+			success : function(response) {
+				
+				if (isTypeString(response)) {
+
+					response = JSON.parse(response);
+				}
+
+				if (response.status) {
+
+					$('#common_modal').modal('hide');
+					
+					//$("#loading_img").css("display", "none");
+					
+					if(isDashBoard(reportType)) {
+						if(reportType === "WEB") {
+							
+							webTbl.ajax.reload();
+							
+						} else {
+							
+							apiTbl.ajax.reload();
+						}
+						
+					} else {
+						
+						var res = JSON.parse(response.results);
+						tagsStr = res.tags;
+					
+						showHideTagButton(reportId, tagsStr, reportType);
+					}
+					
+					var title = "Confirmation Message";
+	     			var btn = { "text": "Close", "count": 1, "onclick":"", "href": ""};
+	     			
+					if(type === 'edit' && tags === "") {
+						var description = "Tags has been removed successfully.";
+					} else {
+						var description = "Your report has been successfully tagged.";
+					}
+					
+					setTimeout(function() {
+	     				// Open confirmation modal
+		     			buildModal(title, description, btn, appName);
+	     			}, 500);
+
+	     			$("#loading_img").css("display", "none");
+					
+				} else {
+ 		    		
+					var title = "Confirmation Message";
+					var description = "Failed to tag your report.";
+	     			var btn = { "text": "Close", "count": 1, "onclick":"", "href": ""};
+	     			
+	     			setTimeout(function() {
+	     				// Open confirmation modal
+		     			buildModal(title, description, btn, appName);
+	     			}, 500);
+	     			
+ 		    		$("#loading_img").css("display", "none");
+ 		    		
+ 	    			var fieldIds = [];
+ 	    			var obj = {};
+ 	    			obj["id"] = "input_tags";
+ 	    			obj["message"] = response.message;
+ 	    			obj["fieldName"] = "commonMsg";
+ 	    			obj["border"] ="false";
+ 	    			
+ 	    			fieldIds.push(obj);
+ 	    			showError(fieldIds);
+ 		    	}
+			},
+			error : function(err) {
+		    	
+				$("#loading_img").css("display", "none");
+				
+				var msg = getErrorMessage(err, emailConfig);
+				console.log("Error while sending tag data: " + msg);
+			} 
+		});
+	}
+	
+	/**
+	 * Function is used to display list of tags in report page
+	 * 
+	 * */
+	function buildTagContent(tags) {
+		
+		var tagLength = tags.length;
+		
+		if(tagLength > 2 && isFileShared === 'false'){
+			tags = tags.slice(0,2);
+		}
+		
+		var content = "";
+		tags.forEach(function(tag) {
+			
+			//content = content + "<span id = \"ft-tooltip\" data-toggle=\"tooltip\" data-placement=\"bottom\" title='"+tag+"'>"
+			tag = tag.length > 10 ? tag.substring(0, 10) + "..." : tag;
+	       // content = content + "<a class=\"report-tag\" id = \"list_tag\">" +tag + "</a>"
+	        if(isFileShared === 'false'){
+	        	 content = content + "<a class=\"report-tag\" id = \"list_tag\">" +tag + "</a>"
+	        } else {
+	        	 content = content + "<a class=\"report-tag display-inline-block\" id = \"list_tag\">" +tag + "</a>"
+	        }
+	       
+		});
+		
+		if(tagLength > 2 && isFileShared === 'false'){
+			content = content + "<a class=\"tag-list font-15 font-w-normal underline\" id=\"tagLink\">+"+(tagLength - 2)+" more</a>"
+		}
+		return content;
+	}
+	
+	/**
+	 * Function is used to hide and show the Add Tag and Edit Tag button.
+	 * 
+	 * */
+	function showHideTagButton(reportId, tagsStr, reportType){
+
+		reportType = null;
+		if(tagsStr) {
+
+			$('#addTag_link').addClass("display-none");
+			$('#editTag_link').removeClass("display-none");
+			$('#tag_title').removeClass("display-none");
+			$('#editTag_link').addClass("display-block");
+			$('#tag_title').addClass("display-block");
+			
+			var listTag = tagsStr.trim().split(",");
+			var trimmedTags = buildTagContent(listTag);
+
+			$('#tag_list').html(trimmedTags);
+
+			$('#editTag_bttn').attr("onclick", "editTag('"+reportId+"', '"+tagsStr+"', '"+reportType+"')");
+			$('#tagLink').attr("onclick", "editTag('"+reportId+"', '"+tagsStr+"', '"+reportType+"')");
+			$('#tag_list').removeClass("display-none");
+
+		} else {
+
+			$('#editTag_link').addClass("display-none");
+			$('#tag_title').addClass("display-none");
+			$('#addTag_link').removeClass("display-none");
+			$('#addTag_link').addClass("display-block");
+			$('#tag_list').addClass("display-none");
+		}
+	}
+	
+	/**
+	 * Function is used to check reportType parameter to differentiate the report page and dashboard table.
+	 *	If report type is null then it is gc_report OR ft_report page
+	 *	else it is upload web/api table.
+	 * 
+	 * */
+	function isDashBoard(reportType) {
+		
+		if(reportType === 'null'){
+			
+			return false;
+		} else {
+			return true;
+		}
+	}
+	
+	/*
+	 * This event will get triggered when common modal opens.
+	 * */
+	$("#common_modal").on('shown.bs.modal', function (e) {
+		// Highlighting cursor in input field
+		$("#input_tags").focus();
+	});
+	

@@ -1,0 +1,82 @@
+# =============================
+# Build 输出
+# =============================
+# 忽略构建文件，但保留目录遍历，以便下方放行 exe
+**/[Dd]ebug/**
+**/[Dd]ebugPublic/**
+**/[Rr]elease/**
+**/[Rr]eleases/**
+**/x64/**
+**/x86/**
+**/[Bb]in/**
+**/[Oo]bj/**
+**/artifacts/**
+!**/[Dd]ebug/**/
+!**/[Dd]ebugPublic/**/
+!**/[Rr]elease/**/
+!**/[Rr]eleases/**/
+!**/x64/**/
+!**/x86/**/
+!**/[Bb]in/**/
+!**/[Oo]bj/**/
+!**/artifacts/**/
+
+# =============================
+# Visual Studio 临时文件
+# =============================
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# WPF 临时项目文件 (生成过程中产生)
+*_wpftmp.csproj
+*_wpftmp.*
+
+# =============================
+# ReSharper / Rider 等工具
+# =============================
+.idea/
+*.DotSettings.user
+
+# =============================
+# 日志与大文件
+# =============================
+*.log
+log*.txt
+
+# GC 样本日志 (体积较大,按需放到外部目录或 git-lfs 管理)
+servergc*.log
+
+# =============================
+# 操作系统杂项
+# =============================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# =============================
+# NuGet
+# =============================
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# =============================
+# 测试结果与覆盖率
+# =============================
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+TestResult.xml
+coverage*.xml
+coverage*.json
+*.coverage
+*.coveragexml
+
+# 保留可执行文件，包括构建和发布目录中的 exe
+!*.[Ee][Xx][Ee]

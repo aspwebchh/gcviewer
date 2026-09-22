@@ -1,0 +1,418 @@
+/**
+ * 
+ */
+
+//var subscriptionType = null;
+
+/*
+ * This function will be invoked when user start typing in text box
+ * */
+function signInKeydown(e) {
+	
+	// Removing toast notification from the screen
+	//$.toast().reset('all');
+	
+	// Hide error message if the user starts typing and remove red border
+	var ids = [];
+	ids.push(e.target.id);
+	
+	hideError(ids);
+	
+	// hide the common error message
+	$("#signin_common_err_msg").addClass("display-none");
+	
+	// If user hits enter key then submit form and call sign in function.
+    if (e.keyCode === 13) {
+    	signIn();
+    }
+}
+
+/*
+ * Function is used to validate the inputs. This function will return a message if any
+ * any input is not valid.
+ * 
+ * */
+function signInValidateInputs(email, password) {
+	
+	/*var msg = null;
+	
+	if(!email) {
+		msg = "Please enter email address.";
+	}
+	if(!password) {
+		msg = (msg) ? msg + ", Please enter password." : "Please enter password.";
+	}
+	
+	return msg;*/
+	
+	var fieldIds = [];
+	
+	if(!email) {
+		
+		// Display error message below email field
+		//$("#signin_email_err_msg").html(buildErrorContainer()); // get the error container
+		//$("#signin_email_err_msg span").html("Please enter email address.");
+		
+		var obj = {};
+		obj["id"] = "signin_email";
+		obj["message"] = noEmailMsg;
+		obj["fieldName"] = "email";
+		obj["border"] ="true";
+		
+		fieldIds.push(obj);
+		
+		//fieldIds.push("signin_email");
+	}
+	
+	if(!password) {
+		
+		// Display error message below password field
+		//$("#signin_pwd_err_msg").html(buildErrorContainer()); // get the error container
+		//$("#signin_pwd_err_msg span").html("Please enter password.");
+		//fieldIds.push("signin_pwd");
+		
+		var obj = {};
+		obj["id"] = "signin_pwd";
+		obj["message"] = noPasswordMsg;
+		obj["fieldName"] = "password";
+		obj["border"] ="true";
+		
+		fieldIds.push(obj);
+	}
+	
+	return fieldIds;
+}
+
+/**
+ * Below function will return custom attribute value which we are setting in gc-subscription.jsp.
+ * Only if user clicks on BUY NOW button before signup/signin.
+ * */
+function getSubscriptionTypeData() {
+	
+	var subscriptionType = null;
+	if($('a[data-subscription-type]').length > 0) {
+		
+		var pro = document.getElementById('pro').getAttribute("data-subscription-type");
+		var pro_pp = document.getElementById('pro_pp').getAttribute("data-subscription-type");
+		
+		if(pro) {
+			subscriptionType = pro;
+		}
+		
+		if(pro_pp) {
+			subscriptionType = pro_pp;
+		}
+	}
+	
+	return subscriptionType;
+}
+
+/**
+ * Below function will return custom attribute value which we are setting in expert-button.js file.
+ * Only if user clicks on Expert button before signup/signin.
+ * */
+function getExpertAdviceData() {
+	
+	var expertAdvice = null;
+	if($('a[data-expert-advice]').length > 0) {
+		
+		expertAdvice = document.getElementById('expert_advice').getAttribute("data-expert-advice");
+		if(expertAdvice) {
+			
+			return expertAdvice;
+		}
+	}
+	
+	return expertAdvice;
+}
+
+function checkIsCardUpdateRequest() {
+	
+	if($('a[data-update-card]').length > 0) {
+		
+		var type = document.getElementById('signin').getAttribute("data-update-card");
+		if(type) {
+			
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+/**
+ * This function is used to fetch the email address from update-card.jsp page.
+ * In this JSP page we are setting email address of user to data-update-card-email attr 
+ * to whom we are sending payment failed email.
+ * 
+ * When the sign in request comes from this page, we compare sign in email id with data-update-card-email.
+ * If both matches then redirecting the user to payment hisotry page and opening stripe update card pop up
+ * automatically. Otherwise showing toaster message.
+ * */
+function getUpdateCardEmail() {
+	
+	if($('a[data-update-card-email]').length > 0) {
+		
+		var updateCardUserEmail = document.getElementById('signin').getAttribute("data-update-card-email");
+		if(updateCardUserEmail) {
+			
+			return updateCardUserEmail;
+		}
+	}
+	
+	return null;
+}
+
+/**
+ * This function is used to submit the form and call sing in API to authenticate
+ * the user. It the user is authenticated successfully then redirecting to the dashboard page.
+ * Otherwise showing error message on the screen.
+ * 
+ * */
+function signIn() {
+	
+	try {
+		
+		// Showing loader
+		$("#loading_img").css("display", "block"); 
+		
+		// Get the subscription plan type on which user clicked so that after signin/signup we can open that particular stripe popup
+		var subscriptionType = getSubscriptionTypeData();
+		
+		var email = $('#signin_email').val();
+		var pwd = $("#signin_pwd").val();
+		//var rememberMe = $("#remember_me").val();
+		var rememberMe = $("#remember_me").prop("checked");
+		
+		// This is used to get the email id of the user to whom we have sent payment failed email
+		// Validate whether user is signing in with the valid account or not.
+		// This will contain value only if the sign in request is coming from update-card.jsp page.
+		var updateCard = getUpdateCardEmail();
+		
+		// Validate form inputs
+		var invalidFieldIds = signInValidateInputs(email, pwd);
+		if(invalidFieldIds.length > 0) {
+			
+			$("#loading_img").css("display", "none");
+			//toastError("Error", validationMsg, true);
+			
+			// Show error message
+			showError(invalidFieldIds);
+			
+			return false;
+		}
+		
+		$.ajax({
+	        type : "POST",
+	        url : signInURL,
+	        data: {
+	        	'emailId': email,
+	        	'password': pwd,
+	            'rememberMe': rememberMe,
+	            'a': encodeTxt(appName)
+	        },
+	        success: function(results) {
+	        	
+	        	// Hide loader
+	        	document.getElementById("loading_img").style.display = "none";
+
+	        		//Close Signin modal
+	        		//$('#signin_modal').modal('hide');
+
+					if ((results.status) && !(results.message)) {
+	
+						if(typeof subscriptionPage !== 'undefined' && location.pathname.indexOf(subscriptionPage) != -1){
+							location.href = subscriptionPageUrl;
+						} else {
+							location.href = dashboardURL;
+						}
+	                }  else if ((results.status) && (results.message)) {
+	
+	                    $('.signin-split-form-container').hide()
+ 						$('#signin-verification-link-sent').removeClass('display-none')
+	                    $('#signin-verification-link-sent').addClass('shown')
+	
+	                    // Append message
+	                    $("#signin-verification-message-body").html(results.message);
+	
+	                } else {
+					
+	        		// Show error message
+    				var fieldIds = [];
+    				var obj = {};
+    				obj["id"] = "signin_common";
+    				obj["message"] = results.message;
+    				obj["fieldName"] = "commonMsg";
+    				obj["border"] ="false";
+    					
+    				fieldIds.push(obj);
+    				showError(fieldIds);
+
+	        	}
+	        	
+	        	$("#loading_img").css("display", "none");
+	        },
+	        error: function(err) {
+	        	$("#loading_img").css("display", "none");
+	        	
+	        	var msg = getErrorMessage(err, emailConfig);
+            	console.log("Sign In failed: "+ msgs);
+	        	//toastError("Error", msg, false);
+            	
+            	// Show error message
+				var fieldIds = [];
+				var obj = {};
+				obj["id"] = "signin_common";
+				obj["message"] = msg;
+				obj["fieldName"] = "commonMsg";
+				obj["border"] ="false";
+					
+				fieldIds.push(obj);
+				showError(fieldIds);
+	        }
+	 	});
+		
+	} catch(e) {
+		$("#loading_img").css("display", "none");
+		console.log("Failed to sign in - " + e.message)
+		//toastError("Error", "Sorry! Failed to Authenticate.", false);
+		
+		// Show error message
+		var fieldIds = [];
+		var obj = {};
+		obj["id"] = "signin_common";
+		obj["message"] = "Sorry! Authentication failed. Please try again later";
+		obj["fieldName"] = "commonMsg";
+		obj["border"] ="false";
+			
+		fieldIds.push(obj);
+		showError(fieldIds);
+	}
+}
+
+function closeSignInModal() {
+	
+	$('#signin_modal').modal('hide');
+}
+
+
+/*
+ * This event will get triggered when sign in modal opens
+ * In this function, we are checkiing whether user opened modal from
+ * subscription page or not. If it came from subscription page then we are storing attr i.e. subscription type
+ * Get the value of attr and append it to Sign up URL in sign in modal because in case if use goes to sign up page
+ * then after sign up we should redirect him back to subscription page.
+ * 
+ * */
+$("#signin_modal").on('shown.bs.modal', function (e) {
+
+	//$.toast().reset('all');
+	
+	// Removing all validation message
+	removeAllErrors();
+	
+	//Clearing Email and Password field in sign-in modal.
+	if($('#signin_email').length != 0) {
+		document.getElementById("signin_email").value ="";
+	}
+	if($('#signin_pwd').length != 0) {
+		document.getElementById("signin_pwd").value ="";
+	}
+	
+	var newURL = null;
+	
+	// Get the report Type
+	var expertAdviceData = getExpertAdviceData();
+	
+	// Get current page from the request came, If it is subscription or pricing page the append
+	// page name in the sign up URL, so that after sign up we can redirect to the subscrition/pricing page.
+	var page = (isSubscriptionPage(location.pathname));
+	if(page) {
+		
+		//newURL = (newURL) ? newURL + "&page=" + encodeTxt(page) : signUp + "?page=" + encodeTxt(page);
+		newURL = signUpPage + "?page=" + encodeTxt(page);
+	}
+	
+	// If the request is initiated by clicking BUY NOW button then need to open signup modal rather than a page
+	// So checking if subscription-type-data attr is present or not. If present then building signup modal URL
+	// otherwise building signup page URL.
+	if(getSubscriptionTypeData() || (expertAdviceData)) {
+		
+		$("#sign_up_url").attr("href", signUpModal);
+		$("#sign_up_url").attr("data-toggle", "modal");
+		$("#sign_up_url").attr("data-target", "#signup_modal");
+		$("#sign_up_url").attr("onclick", "closeSignInModal()");
+	} else {
+		
+		$("#sign_up_url").attr("href", (newURL) ? newURL : signUpPage);
+		$("#sign_up_url").removeAttr("data-toggle");
+		$("#sign_up_url").removeAttr("data-target");
+		$("#sign_up_url").removeAttr("onclick");
+	}
+	
+	// Append Sign Up URL
+	//$("#sign_up_url").attr("href", signUp);
+	// Append forgot password URL
+	$("#forgot").attr("href", forgotPwURL);
+	
+	expertLogger("Sign in modal is opened");
+});
+
+/**
+ * This event will get trigger when modal is about to close
+ * 
+ * */
+$("#signin_modal").on('hide.bs.modal', function (e) {
+	
+	// Removing all validation message
+	removeAllErrors();
+	
+	//Clearing Email and Password field in sign-in modal.
+	if($('#signin_email').length != 0) {
+		document.getElementById("signin_email").value ="";
+	}
+	if($('#signin_pwd').length != 0) {
+		document.getElementById("signin_pwd").value ="";
+	}
+	
+	// when modal is closed, remove verification link message and display login form
+	$('#signin-verification-link-sent').addClass("display-none");
+	$('.signin-split-form-container').show();
+	
+	// ------------ Start - Debug Log ------------------------------------
+	expertLogger("Sign in modal is closed");
+	// ------------ End - Debug Log ------------------------------------
+});
+
+
+/**
+ * This function is used to get the page name from the current URL path.
+ * 
+ * For Example, If the signin/sign up request is coming from the subscription or pricing page
+ * then after signin/signup we need to redirect user back to the subscription or pricing page.
+ * */
+function isSubscriptionPage(path) {
+	
+	if((path.indexOf(subscriptionURL) != -1) ||  (path.indexOf(pricingPageURL) != -1)) {
+		
+		return path.split("/")[location.pathname.split("/").length-1];
+	}
+	
+	return null;
+}
+
+/**
+ * This function is used to get the page name from the current URL path.
+ * 
+ * For Example, If the signin/sign up request is coming from the diamondgc-report or ft-thread-report or ft-thread-report-multi page.
+ * then after signin/signup we need to redirect user back to the diamondgc-report or ft-thread-report or ft-thread-report-multi page.
+ * */
+function isReportPage(path) {
+	
+	if((path.indexOf("diamondgc") != -1) || (path.indexOf("ft-thread-report") != -1)) {
+		
+		return path.split("/")[location.pathname.split("/").length-1];
+	}
+	
+	return null;
+}
