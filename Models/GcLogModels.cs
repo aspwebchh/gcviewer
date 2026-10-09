@@ -279,6 +279,23 @@ public sealed class ChartSeries : INotifyPropertyChanged
     }
 }
 
+public static class ChartPalette
+{
+    public static readonly Color[] Colors =
+    [
+        Color.FromRgb(14, 159, 134),
+        Color.FromRgb(62, 111, 216),
+        Color.FromRgb(138, 99, 210),
+        Color.FromRgb(91, 181, 91),
+        Color.FromRgb(224, 86, 79),
+        Color.FromRgb(240, 162, 59),
+        Color.FromRgb(43, 176, 201),
+        Color.FromRgb(212, 107, 166),
+        Color.FromRgb(127, 140, 158),
+        Color.FromRgb(196, 162, 58)
+    ];
+}
+
 public sealed class ChartPoint
 {
     public double X { get; init; }

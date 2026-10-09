@@ -10,19 +10,7 @@ public sealed class GcReportCalculator
 
     private sealed record PauseCycleSample(GcEvent Event, double EndSeconds, double DurationMs);
 
-    private static readonly Color[] Palette =
-    [
-        Color.FromRgb(21, 176, 167),
-        Color.FromRgb(15, 37, 86),
-        Color.FromRgb(0, 113, 188),
-        Color.FromRgb(140, 198, 63),
-        Color.FromRgb(194, 70, 66),
-        Color.FromRgb(250, 163, 23),
-        Color.FromRgb(79, 53, 141),
-        Color.FromRgb(48, 116, 185),
-        Color.FromRgb(35, 191, 170),
-        Color.FromRgb(235, 140, 198)
-    ];
+    private static readonly Color[] Palette = ChartPalette.Colors;
 
     public GcReport Build(GcParseResult source, double? startSeconds = null, double? endSeconds = null)
     {

@@ -9,19 +9,21 @@ namespace gcviewer.Controls;
 
 public sealed class SimpleChart : FrameworkElement
 {
-    private static readonly Color[] Palette =
-    [
-        Color.FromRgb(21, 176, 167),
-        Color.FromRgb(15, 37, 86),
-        Color.FromRgb(0, 113, 188),
-        Color.FromRgb(140, 198, 63),
-        Color.FromRgb(194, 70, 66),
-        Color.FromRgb(250, 163, 23),
-        Color.FromRgb(79, 53, 141),
-        Color.FromRgb(48, 116, 185),
-        Color.FromRgb(35, 191, 170),
-        Color.FromRgb(235, 140, 198)
-    ];
+    private const int MarkerPointLimit = 150;
+
+    private static readonly Color[] Palette = ChartPalette.Colors;
+    private static readonly FontFamily ChartFont = new("Segoe UI, Microsoft YaHei UI");
+    private static readonly Typeface NormalTypeface = new(ChartFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+    private static readonly Typeface SemiBoldTypeface = new(ChartFont, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+    private static readonly Brush TitleBrush = Frozen(Color.FromRgb(31, 37, 48));
+    private static readonly Brush LegendBrush = Frozen(Color.FromRgb(58, 70, 89));
+    private static readonly Brush MutedBrush = Frozen(Color.FromRgb(106, 119, 138));
+    private static readonly Brush HiddenLegendBrush = Frozen(Color.FromRgb(176, 185, 198));
+    private static readonly Pen AxisPen = FrozenPen(Color.FromRgb(213, 220, 229));
+    private static readonly Pen GridPen = FrozenPen(Color.FromRgb(238, 241, 245));
+    private static readonly Pen SliceSeparatorPen = FrozenPen(Colors.White);
+
+    private double legendBottom;
 
     public static readonly DependencyProperty SeriesProperty = DependencyProperty.Register(
         nameof(Series),
@@ -142,15 +144,16 @@ public sealed class SimpleChart : FrameworkElement
             return;
         }
 
-        context.DrawRectangle(Brushes.White, null, bounds);
-        DrawTitle(context);
+        // 透明背景仍需绘制，保证空白区域也能命中鼠标事件以显示 tooltip。
+        context.DrawRectangle(Brushes.Transparent, null, bounds);
+        var titleRight = DrawTitle(context);
 
         var series = GetChartSeries().ToList();
-        DrawLegend(context, series);
+        DrawLegend(context, series, titleRight);
 
         if (series.All(item => !item.IsVisible || item.Points.Count == 0))
         {
-            DrawCenteredText(context, "无可展示数据", bounds, 16, Brushes.Gray);
+            DrawCenteredText(context, "无可展示数据", bounds, 14, MutedBrush);
             return;
         }
 
@@ -217,7 +220,7 @@ public sealed class SimpleChart : FrameworkElement
 
     private Rect PlotArea()
     {
-        var top = 62d;
+        var top = Math.Max(62d, legendBottom + 30);
         var bottom = 58d;
         var left = 62d;
         var right = 24d;
@@ -236,37 +239,41 @@ public sealed class SimpleChart : FrameworkElement
         return new Rect(left, top, Math.Max(10, ActualWidth - left - right), Math.Max(10, ActualHeight - top - bottom));
     }
 
-    private void DrawTitle(DrawingContext context)
+    private double DrawTitle(DrawingContext context)
     {
         if (string.IsNullOrWhiteSpace(Title))
         {
-            return;
+            return 0;
         }
 
-        context.DrawText(MakeText(Title, 17, Brushes.Black, FontWeights.SemiBold), new Point(16, 14));
+        var title = MakeText(Title, 15, TitleBrush, FontWeights.SemiBold);
+        context.DrawText(title, new Point(4, 4));
+        return 4 + title.Width;
     }
 
-    private void DrawLegend(DrawingContext context, IReadOnlyList<ChartSeries> series)
+    private void DrawLegend(DrawingContext context, IReadOnlyList<ChartSeries> series, double titleRight)
     {
-        var x = Math.Min(ActualWidth - 18, 220d);
-        var y = 18d;
+        var x = titleRight > 0 ? titleRight + 24 : 4d;
+        var y = 6d;
+        legendBottom = 0;
 
         foreach (var item in series.Where(item => item.Points.Count > 0))
         {
-            var label = MakeText(item.Name, 12, item.IsVisible ? Brushes.Black : Brushes.Gray, FontWeights.Normal);
-            var width = label.Width + 28;
-            if (x + width > ActualWidth - 16)
+            var label = MakeText(item.Name, 12, item.IsVisible ? LegendBrush : HiddenLegendBrush, FontWeights.Normal);
+            var width = label.Width + 22;
+            if (x + width > ActualWidth - 4 && x > 4)
             {
-                x = 16;
-                y += 20;
+                x = 4;
+                y += 22;
             }
 
-            var marker = new Rect(x, y + 2, 12, 12);
-            context.DrawRoundedRectangle(item.IsVisible ? item.Fill : Brushes.Transparent, new Pen(item.Stroke, 1), marker, 2, 2);
-            context.DrawText(label, new Point(x + 18, y - 1));
+            var marker = new Rect(x, y + 3, 10, 10);
+            context.DrawRoundedRectangle(item.IsVisible ? item.Stroke : Brushes.Transparent, new Pen(item.Stroke, 1.5), marker, 5, 5);
+            context.DrawText(label, new Point(x + 16, y - 1));
 
-            legendHits.Add(new LegendHit(new Rect(x - 3, y - 3, width, 20), item));
-            x += width + 10;
+            legendHits.Add(new LegendHit(new Rect(x - 3, y - 3, width + 6, 22), item));
+            legendBottom = y + 16;
+            x += width + 14;
         }
     }
 
@@ -349,15 +356,19 @@ public sealed class SimpleChart : FrameworkElement
             }
 
             line.Freeze();
-            context.DrawGeometry(null, new Pen(item.Stroke, 2), line);
+            var linePen = new Pen(item.Stroke, 1.8) { LineJoin = PenLineJoin.Round };
+            linePen.Freeze();
+            context.DrawGeometry(null, linePen, line);
 
-            var drawMarkers = mapped.Count <= 600;
+            var drawMarkers = mapped.Count <= MarkerPointLimit;
+            var markerPen = new Pen(item.Stroke, 1.5);
+            markerPen.Freeze();
             foreach (var point in mapped)
             {
                 pointHits.Add(new HitTarget(point.Screen, point.Point, drawMarkers ? 9 : 6));
                 if (drawMarkers)
                 {
-                    context.DrawEllipse(Brushes.White, new Pen(item.Stroke, 1.5), point.Screen, 3.5, 3.5);
+                    context.DrawEllipse(Brushes.White, markerPen, point.Screen, 3, 3);
                 }
             }
         }
@@ -378,18 +389,31 @@ public sealed class SimpleChart : FrameworkElement
 
         var groupCount = visible.Max(item => item.Points.Count);
         var groupWidth = plot.Width / Math.Max(1, groupCount);
-        var barWidth = Math.Max(4, groupWidth / Math.Max(1, visible.Count) * 0.62);
+        var slotWidth = groupWidth / Math.Max(1, visible.Count);
+        // 柱子过密时改为无描边的细实线，避免强制最小宽度导致柱子互相覆盖成一整块。
+        var dense = slotWidth < 4;
+        var barWidth = dense ? Math.Max(1, slotWidth) : Math.Min(56, slotWidth * 0.62);
 
         for (var seriesIndex = 0; seriesIndex < visible.Count; seriesIndex++)
         {
             var item = visible[seriesIndex];
+            var barPen = dense ? null : new Pen(item.Stroke, 1);
+            barPen?.Freeze();
             for (var pointIndex = 0; pointIndex < item.Points.Count; pointIndex++)
             {
                 var point = item.Points[pointIndex];
                 var x = plot.Left + pointIndex * groupWidth + groupWidth / 2 - (visible.Count * barWidth) / 2 + seriesIndex * barWidth;
                 var height = point.Y / maxY * plot.Height;
                 var bar = new Rect(x, plot.Bottom - height, barWidth, height);
-                context.DrawRoundedRectangle(item.Fill, new Pen(item.Stroke, 1), bar, 2, 2);
+                if (dense)
+                {
+                    context.DrawRectangle(item.Stroke, null, bar);
+                }
+                else
+                {
+                    context.DrawRoundedRectangle(item.Fill, barPen, bar, 2, 2);
+                }
+
                 pointHits.Add(new HitTarget(new Point(bar.Left + bar.Width / 2, bar.Top), point, Math.Max(12, bar.Width)));
 
                 if (groupCount <= 12 && seriesIndex == 0)
@@ -415,7 +439,7 @@ public sealed class SimpleChart : FrameworkElement
 
         if (points.Count == 0)
         {
-            DrawCenteredText(context, "无可展示数据", new Rect(0, 0, ActualWidth, ActualHeight), 16, Brushes.Gray);
+            DrawCenteredText(context, "无可展示数据", new Rect(0, 0, ActualWidth, ActualHeight), 14, MutedBrush);
             return;
         }
 
@@ -435,7 +459,7 @@ public sealed class SimpleChart : FrameworkElement
             brush.Freeze();
 
             var slice = CreateDonutSlice(center, radius, inner, angle, Math.Min(359.9, sweep));
-            context.DrawGeometry(brush, new Pen(Brushes.White, 1), slice);
+            context.DrawGeometry(brush, SliceSeparatorPen, slice);
 
             var midAngle = angle + sweep / 2;
             var hitPoint = PointOnCircle(center, (radius + inner) / 2, midAngle);
@@ -443,7 +467,7 @@ public sealed class SimpleChart : FrameworkElement
             angle += sweep;
         }
 
-        DrawCenteredText(context, $"{total:N0}\n总次数", new Rect(center.X - inner, center.Y - inner / 2, inner * 2, inner), 13, Brushes.Black);
+        DrawCenteredText(context, $"{total:N0}\n总次数", new Rect(center.X - inner, center.Y - inner / 2, inner * 2, inner), 13, TitleBrush);
 
         var legendX = Math.Min(ActualWidth - 145, plot.Right + 24);
         var legendY = plot.Top;
@@ -453,52 +477,55 @@ public sealed class SimpleChart : FrameworkElement
             var color = Palette[i % Palette.Length];
             var brush = new SolidColorBrush(color);
             brush.Freeze();
-            context.DrawRectangle(brush, null, new Rect(legendX, legendY + i * 22 + 4, 11, 11));
-            context.DrawText(MakeText($"{TrimText(item.Point.Label, 9)} {item.Point.Y:N0}", 11, Brushes.Black, FontWeights.Normal),
-                new Point(legendX + 17, legendY + i * 22));
+            context.DrawRoundedRectangle(brush, null, new Rect(legendX, legendY + i * 22 + 4, 10, 10), 5, 5);
+            context.DrawText(MakeText($"{TrimText(item.Point.Label, 9)} {item.Point.Y:N0}", 11, LegendBrush, FontWeights.Normal),
+                new Point(legendX + 16, legendY + i * 22));
         }
     }
 
     private void DrawAxes(DrawingContext context, Rect plot, double minX, double maxX, double minY, double maxY, bool timeAxis)
     {
-        var axisPen = new Pen(new SolidColorBrush(Color.FromRgb(190, 198, 210)), 1);
-        var gridPen = new Pen(new SolidColorBrush(Color.FromRgb(232, 236, 242)), 1);
-        context.DrawLine(axisPen, new Point(plot.Left, plot.Bottom), new Point(plot.Right, plot.Bottom));
-        context.DrawLine(axisPen, new Point(plot.Left, plot.Top), new Point(plot.Left, plot.Bottom));
-
         for (var i = 0; i <= 4; i++)
         {
             var ratio = i / 4d;
             var y = plot.Bottom - ratio * plot.Height;
-            context.DrawLine(gridPen, new Point(plot.Left, y), new Point(plot.Right, y));
+            context.DrawLine(GridPen, new Point(plot.Left, y), new Point(plot.Right, y));
             var value = minY + ratio * (maxY - minY);
-            var text = MakeText(FormatValue(value), 10, Brushes.DimGray, FontWeights.Normal);
-            context.DrawText(text, new Point(Math.Max(2, plot.Left - text.Width - 8), y - 8));
+            var text = MakeText(FormatValue(value), 10, MutedBrush, FontWeights.Normal);
+            context.DrawText(text, new Point(Math.Max(2, plot.Left - text.Width - 8), y - text.Height / 2));
         }
 
         for (var i = 0; i <= 4; i++)
         {
             var ratio = i / 4d;
             var x = plot.Left + ratio * plot.Width;
-            context.DrawLine(gridPen, new Point(x, plot.Top), new Point(x, plot.Bottom));
+            if (i > 0)
+            {
+                context.DrawLine(GridPen, new Point(x, plot.Top), new Point(x, plot.Bottom));
+            }
+
             var value = minX + ratio * (maxX - minX);
             var label = timeAxis ? GcText.FormatRelativeTime(value) : "";
             if (!string.IsNullOrWhiteSpace(label))
             {
-                var text = MakeText(label, 10, Brushes.DimGray, FontWeights.Normal);
-                context.DrawText(text, new Point(x - text.Width / 2, plot.Bottom + 8));
+                var text = MakeText(label, 10, MutedBrush, FontWeights.Normal);
+                var textX = Math.Clamp(x - text.Width / 2, 2, Math.Max(2, ActualWidth - text.Width - 2));
+                context.DrawText(text, new Point(textX, plot.Bottom + 8));
             }
         }
 
+        context.DrawLine(AxisPen, new Point(plot.Left, plot.Bottom), new Point(plot.Right, plot.Bottom));
+        context.DrawLine(AxisPen, new Point(plot.Left, plot.Top), new Point(plot.Left, plot.Bottom));
+
         if (!string.IsNullOrWhiteSpace(XAxisTitle))
         {
-            var text = MakeText(XAxisTitle, 11, Brushes.DimGray, FontWeights.Normal);
+            var text = MakeText(XAxisTitle, 11, MutedBrush, FontWeights.Normal);
             context.DrawText(text, new Point(plot.Left + plot.Width / 2 - text.Width / 2, ActualHeight - 20));
         }
 
         if (!string.IsNullOrWhiteSpace(YAxisTitle))
         {
-            context.DrawText(MakeText(YAxisTitle, 11, Brushes.DimGray, FontWeights.Normal), new Point(8, 42));
+            context.DrawText(MakeText(YAxisTitle, 11, MutedBrush, FontWeights.Normal), new Point(4, plot.Top - 24));
         }
     }
 
@@ -543,7 +570,7 @@ public sealed class SimpleChart : FrameworkElement
             text,
             CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight,
-            new Typeface(new FontFamily("Microsoft YaHei UI"), FontStyles.Normal, weight, FontStretches.Normal),
+            weight == FontWeights.Normal ? NormalTypeface : SemiBoldTypeface,
             size,
             brush,
             dpi.PixelsPerDip);
@@ -568,7 +595,7 @@ public sealed class SimpleChart : FrameworkElement
         var y = bounds.Top;
         foreach (var line in lines)
         {
-            var formatted = MakeText(line, size, Brushes.DimGray, FontWeights.Normal);
+            var formatted = MakeText(line, size, MutedBrush, FontWeights.Normal);
             var x = bounds.Left + bounds.Width / 2 - formatted.Width / 2;
             context.DrawText(formatted, new Point(Math.Max(bounds.Left, x), y));
             y += size + 3;
@@ -605,7 +632,7 @@ public sealed class SimpleChart : FrameworkElement
         if (remaining.Length > 0 && lines.Count > 0)
         {
             var last = lines[^1].TrimEnd();
-            while (last.Length > 0 && MakeText(last + "…", size, Brushes.DimGray, FontWeights.Normal).Width > maxWidth)
+            while (last.Length > 0 && MakeText(last + "…", size, MutedBrush, FontWeights.Normal).Width > maxWidth)
             {
                 last = last[..^1].TrimEnd();
             }
@@ -623,7 +650,7 @@ public sealed class SimpleChart : FrameworkElement
         while (low < high)
         {
             var mid = (low + high + 1) / 2;
-            var formatted = MakeText(text[..mid], size, Brushes.DimGray, FontWeights.Normal);
+            var formatted = MakeText(text[..mid], size, MutedBrush, FontWeights.Normal);
             if (formatted.Width <= maxWidth)
             {
                 low = mid;
@@ -656,6 +683,20 @@ public sealed class SimpleChart : FrameworkElement
         }
 
         return $"{value:0.##}{suffix}";
+    }
+
+    private static Brush Frozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
+    private static Pen FrozenPen(Color color)
+    {
+        var pen = new Pen(Frozen(color), 1);
+        pen.Freeze();
+        return pen;
     }
 
     private static string TrimText(string text, int maxLength)

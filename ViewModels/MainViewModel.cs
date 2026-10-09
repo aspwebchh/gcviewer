@@ -98,6 +98,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             isBusy = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsNotBusy));
+            OnPropertyChanged(nameof(EmptyStateTitle));
+            OnPropertyChanged(nameof(EmptyStateMessage));
             RaiseCommandStates();
         }
     }
@@ -118,6 +120,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasReport));
             OnPropertyChanged(nameof(HasGcData));
+            OnPropertyChanged(nameof(EmptyStateTitle));
             OnPropertyChanged(nameof(EmptyStateMessage));
             OnPropertyChanged(nameof(FileSummary));
             OnPropertyChanged(nameof(RangeSummary));
@@ -126,9 +129,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public bool HasReport => Report is not null;
     public bool HasGcData => Report?.HasGcData == true;
-    public string EmptyStateMessage => Report is null
-        ? "请选择 GC 日志开始分析。"
-        : "当前时间范围没有可展示的 GC 数据，请切换范围或选择其他日志。";
+    public string EmptyStateTitle => IsBusy
+        ? "正在分析日志…"
+        : Report is null
+            ? "打开 GC 日志开始分析"
+            : "当前时间范围没有 GC 数据";
+
+    public string EmptyStateMessage => IsBusy
+        ? "解析进度显示在窗口底部，完成后自动展示报表。"
+        : Report is null
+            ? "选择或拖入一个 JDK Unified GC 日志文件，自动生成中文报表。"
+            : "请切换时间范围，或选择包含完整 GC 完成事件的日志。";
 
     public TimeRangeOption? SelectedTimeRange
     {
@@ -187,7 +198,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        SelectedFilePath = dialog.FileName;
+        await OpenFileAsync(dialog.FileName);
+    }
+
+    public async Task OpenFileAsync(string path)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            StatusMessage = $"文件不存在：{path}";
+            return;
+        }
+
+        SelectedFilePath = path;
         await AnalyzeCurrentFileAsync();
     }
 
