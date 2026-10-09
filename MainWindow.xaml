@@ -6,6 +6,7 @@
         xmlns:controls="clr-namespace:gcviewer.Controls"
         mc:Ignorable="d"
         Title="GC日志中文报表" Height="900" Width="1320" MinHeight="720" MinWidth="1120"
+        Icon="Assets/app-icon.ico"
         WindowState="Maximized"
         Background="#F3F6FA" FontFamily="Microsoft YaHei UI">
     <Window.Resources>
