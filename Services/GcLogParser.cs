@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -15,8 +16,9 @@ public sealed class GcLogParser
         @"^(?<type>Minor|Major|Full)\s+Collection\s+\((?<cause>[^)]+)\)(?:\s+(?<before>\d+(?:\.\d+)?)(?<beforeUnit>[KMGTP])\((?<beforePct>\d+(?:\.\d+)?)%\)->(?<after>\d+(?:\.\d+)?)(?<afterUnit>[KMGTP])\((?<afterPct>\d+(?:\.\d+)?)%\)\s+(?<duration>\d+(?:\.\d+)?)(?<durationUnit>ms|s))?",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    // 只接受 Pause/Concurrent 开头的 G1 完成行，避免把 ZGC 的 "Relocation Stall (线程) 0.1ms" 等行误识别为完成行。
     private static readonly Regex G1CollectionRegex = new(
-        @"^(?<name>.+?)(?:\s+(?<before>\d+(?:\.\d+)?)(?<beforeUnit>[KMGTP])->(?<after>\d+(?:\.\d+)?)(?<afterUnit>[KMGTP])\((?<capacity>\d+(?:\.\d+)?)(?<capacityUnit>[KMGTP])\))?\s+(?<duration>\d+(?:\.\d+)?)(?<durationUnit>ms|s)$",
+        @"^(?<name>(?:Pause|Concurrent|Full GC)\b.*?)(?:\s+(?<before>\d+(?:\.\d+)?)(?<beforeUnit>[KMGTP])->(?<after>\d+(?:\.\d+)?)(?<afterUnit>[KMGTP])\((?<capacity>\d+(?:\.\d+)?)(?<capacityUnit>[KMGTP])\))?\s+(?<duration>\d+(?:\.\d+)?)(?<durationUnit>ms|s)$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly Regex PhaseDurationRegex = new(
@@ -51,6 +53,11 @@ public sealed class GcLogParser
         @"Allocation Stalls:\s+(?<value>\d+)(?:\s+(?<value>\d+))*",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    // ZGC 应用线程分配停顿行不带 GC id，例如 "[gc] Allocation Stall (lua-1) 8.664ms"。
+    private static readonly Regex AllocationStallLineRegex = new(
+        @"^\[(?<time>[\d.]+)s\]\[info\s*\]\[gc\s*\]\s+Allocation Stall \((?<thread>.+)\)\s+(?<duration>\d+(?:\.\d+)?)(?<unit>ms|s)\s*$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private static readonly Regex G1HeapRegionSizeRegex = new(
         @"Heap Region Size:\s+(?<value>\d+(?:\.\d+)?)(?<unit>[KMGTP])",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -74,6 +81,7 @@ public sealed class GcLogParser
         var fileInfo = new FileInfo(filePath);
         var events = new Dictionary<int, GcEvent>();
         var completionRecords = new List<GcCompletionRecord>();
+        var allocationStalls = new List<GcAllocationStall>();
         var heapSections = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var g1Regions = new Dictionary<int, G1RegionAccumulator>();
         double? g1RegionSizeMb = null;
@@ -92,7 +100,7 @@ public sealed class GcLogParser
             }
 
             lineCount++;
-            ParseLine(line, events, completionRecords, heapSections, g1Regions, ref g1RegionSizeMb);
+            ParseLine(line, events, completionRecords, allocationStalls, heapSections, g1Regions, ref g1RegionSizeMb);
 
             if (lineCount % 2000 == 0)
             {
@@ -112,6 +120,8 @@ public sealed class GcLogParser
             TotalBytes = fileInfo.Length
         });
 
+        ApplyG1RegionStats(events, g1Regions, g1RegionSizeMb);
+
         var orderedEvents = events.Values
             .OrderBy(gc => gc.EndSeconds > 0 ? gc.EndSeconds : gc.FirstSeenSeconds)
             .ThenBy(gc => gc.Id)
@@ -129,7 +139,8 @@ public sealed class GcLogParser
             FileSizeBytes = fileInfo.Length,
             LineCount = lineCount,
             Events = orderedEvents,
-            CompletionRecords = orderedCompletionRecords
+            CompletionRecords = orderedCompletionRecords,
+            AllocationStalls = allocationStalls
         };
 
         if (orderedEvents.Count == 0)
@@ -148,6 +159,7 @@ public sealed class GcLogParser
         string line,
         Dictionary<int, GcEvent> events,
         List<GcCompletionRecord> completionRecords,
+        List<GcAllocationStall> allocationStalls,
         Dictionary<string, string> heapSections,
         Dictionary<int, G1RegionAccumulator> g1Regions,
         ref double? g1RegionSizeMb)
@@ -155,6 +167,12 @@ public sealed class GcLogParser
         if (TryParseG1HeapRegionSize(line, out var parsedG1RegionSizeMb))
         {
             g1RegionSizeMb = parsedG1RegionSizeMb;
+        }
+
+        if (TryParseAllocationStall(line, out var allocationStall))
+        {
+            allocationStalls.Add(allocationStall);
+            return;
         }
 
         var match = LogLineRegex.Match(line);
@@ -184,7 +202,7 @@ public sealed class GcLogParser
 
         if (tags == "gc")
         {
-            ParseCollectionLine(gcEvent, completionRecords, seconds, message, g1Regions, g1RegionSizeMb);
+            ParseCollectionLine(gcEvent, completionRecords, seconds, message);
             return;
         }
 
@@ -202,7 +220,7 @@ public sealed class GcLogParser
 
         if (tags.Contains("gc,heap", StringComparison.OrdinalIgnoreCase))
         {
-            ParseHeapLine(gcEvent, generation, message, heapSections, g1Regions, g1RegionSizeMb);
+            ParseHeapLine(gcEvent, generation, message, heapSections, g1Regions);
             return;
         }
 
@@ -240,9 +258,7 @@ public sealed class GcLogParser
         GcEvent gcEvent,
         List<GcCompletionRecord> completionRecords,
         double seconds,
-        string message,
-        Dictionary<int, G1RegionAccumulator> g1Regions,
-        double? g1RegionSizeMb)
+        string message)
     {
         var collectionMatch = CollectionRegex.Match(message);
         if (collectionMatch.Success)
@@ -330,7 +346,6 @@ public sealed class GcLogParser
             gcEvent.SoftMaxCapacityMb = capacity;
             gcEvent.HeapBeforePercent = heapBeforePercent;
             gcEvent.HeapAfterPercent = heapAfterPercent;
-            ApplyG1RegionSize(gcEvent, g1Regions, g1RegionSizeMb);
         }
 
         completionRecords.Add(new GcCompletionRecord
@@ -385,8 +400,7 @@ public sealed class GcLogParser
         string generation,
         string message,
         Dictionary<string, string> heapSections,
-        Dictionary<int, G1RegionAccumulator> g1Regions,
-        double? g1RegionSizeMb)
+        Dictionary<int, G1RegionAccumulator> g1Regions)
     {
         if (ParseG1RegionLine(gcEvent, message, g1Regions))
         {
@@ -508,6 +522,7 @@ public sealed class GcLogParser
         var before = ParseDouble(match.Groups["before"].Value);
         var after = ParseDouble(match.Groups["after"].Value);
         var name = match.Groups["name"].Value;
+        regions.SeenNames.Add(name);
 
         if (name is "Eden" or "Survivor")
         {
@@ -523,22 +538,44 @@ public sealed class GcLogParser
         return true;
     }
 
-    private static void ApplyG1RegionSize(GcEvent gcEvent, Dictionary<int, G1RegionAccumulator> g1Regions, double? g1RegionSizeMb)
+    private static void ApplyG1RegionStats(
+        Dictionary<int, GcEvent> events,
+        Dictionary<int, G1RegionAccumulator> g1Regions,
+        double? g1RegionSizeMb)
     {
-        if (!gcEvent.HeapAfterMb.HasValue || !g1Regions.TryGetValue(gcEvent.Id, out var regions))
+        var regionSizeMb = g1RegionSizeMb ?? EstimateG1RegionSizeMb(events, g1Regions);
+        if (!regionSizeMb.HasValue)
         {
             return;
         }
 
-        var totalAfterRegions = regions.YoungAfter + regions.OldAfter;
-        if (totalAfterRegions <= 0)
+        foreach (var (id, regions) in g1Regions)
         {
-            return;
-        }
+            // 文件开头被截断的 GC 可能只剩部分 region 行，按缺失行计算会把年轻代算成 0。
+            if (!regions.IsComplete || !events.TryGetValue(id, out var gcEvent))
+            {
+                continue;
+            }
 
-        var regionSizeMb = g1RegionSizeMb ?? NormalizeG1RegionSizeMb(gcEvent.HeapAfterMb.Value / totalAfterRegions);
-        ApplyRegionStats(gcEvent, "Young", regions.YoungBefore, regions.YoungAfter, regionSizeMb);
-        ApplyRegionStats(gcEvent, "Old", regions.OldBefore, regions.OldAfter, regionSizeMb);
+            ApplyRegionStats(gcEvent, "Young", regions.YoungBefore, regions.YoungAfter, regionSizeMb.Value);
+            ApplyRegionStats(gcEvent, "Old", regions.OldBefore, regions.OldAfter, regionSizeMb.Value);
+        }
+    }
+
+    private static double? EstimateG1RegionSizeMb(Dictionary<int, GcEvent> events, Dictionary<int, G1RegionAccumulator> g1Regions)
+    {
+        // 滚动日志缺少 Heap Region Size 行时，取完整 GC 中出现最多的估算值，避免单个 GC 带偏全局。
+        return g1Regions
+            .Where(item => item.Value.IsComplete && item.Value.TotalAfter > 0)
+            .Select(item => events.TryGetValue(item.Key, out var gcEvent) && gcEvent.HeapAfterMb.HasValue
+                ? NormalizeG1RegionSizeMb(gcEvent.HeapAfterMb.Value / item.Value.TotalAfter)
+                : (double?)null)
+            .Where(size => size.HasValue)
+            .GroupBy(size => size!.Value)
+            .OrderByDescending(group => group.Count())
+            .ThenByDescending(group => group.Key)
+            .Select(group => (double?)group.Key)
+            .FirstOrDefault();
     }
 
     private static double NormalizeG1RegionSizeMb(double estimatedRegionSizeMb)
@@ -747,6 +784,29 @@ public sealed class GcLogParser
         return false;
     }
 
+    private static bool TryParseAllocationStall(string line, [NotNullWhen(true)] out GcAllocationStall? stall)
+    {
+        stall = null;
+        if (!line.Contains("Allocation Stall (", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var match = AllocationStallLineRegex.Match(line);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        stall = new GcAllocationStall
+        {
+            Seconds = ParseDouble(match.Groups["time"].Value),
+            ThreadName = match.Groups["thread"].Value,
+            DurationMs = ConvertToMs(match.Groups["duration"].Value, match.Groups["unit"].Value)
+        };
+        return true;
+    }
+
     private static string NormalizeGeneration(string raw)
     {
         return raw switch
@@ -931,9 +991,12 @@ public sealed class GcLogParser
 
     private sealed class G1RegionAccumulator
     {
+        public HashSet<string> SeenNames { get; } = new(StringComparer.Ordinal);
         public double YoungBefore { get; set; }
         public double YoungAfter { get; set; }
         public double OldBefore { get; set; }
         public double OldAfter { get; set; }
+        public double TotalAfter => YoungAfter + OldAfter;
+        public bool IsComplete => SeenNames.Count == 4;
     }
 }

@@ -23,7 +23,15 @@ public sealed class GcParseResult
     public DateTime ParsedAt { get; init; } = DateTime.Now;
     public List<GcEvent> Events { get; init; } = new();
     public List<GcCompletionRecord> CompletionRecords { get; init; } = new();
+    public List<GcAllocationStall> AllocationStalls { get; init; } = new();
     public List<string> Warnings { get; init; } = new();
+}
+
+public sealed class GcAllocationStall
+{
+    public double Seconds { get; init; }
+    public required string ThreadName { get; init; }
+    public double DurationMs { get; init; }
 }
 
 public sealed class GcCompletionRecord
@@ -79,6 +87,7 @@ public sealed class GcEvent
     public bool IsCompleted => DurationMs.HasValue;
     public double PauseDurationMs => Phases.Where(phase => phase.IsPause).Sum(phase => phase.DurationMs);
     public double ConcurrentDurationMs => Phases.Where(phase => phase.IsConcurrent).Sum(phase => phase.DurationMs);
+    // ZGC 并发回收期间应用仍在分配，Reclaimed 行才是实际释放量；G1 暂停期间无分配，前后堆差值即释放量。
     public double? ReclaimedMb => ExplicitReclaimedMb
         ?? (HeapBeforeMb.HasValue && HeapAfterMb.HasValue
             ? Math.Max(0, HeapBeforeMb.Value - HeapAfterMb.Value)

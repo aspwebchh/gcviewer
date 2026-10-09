@@ -10,6 +10,8 @@ public sealed class GcReportCalculator
 
     private sealed record PauseCycleSample(GcEvent Event, double EndSeconds, double DurationMs);
 
+    private sealed record AllocationStallSummary(int Count, double MaxMs, double TotalMs);
+
     private static readonly Color[] Palette = ChartPalette.Colors;
 
     public GcReport Build(GcParseResult source, double? startSeconds = null, double? endSeconds = null)
@@ -21,6 +23,7 @@ public sealed class GcReportCalculator
         var completedRecords = source.CompletionRecords
             .OrderBy(record => record.EndSeconds)
             .ToList();
+        // 时间窗口只由 GC 事件决定，与“最近N小时”口径一致；分配停顿行不参与，避免撑大跨度。
         var allTimes = source.Events
             .SelectMany(gc => new[] { gc.FirstSeenSeconds, gc.EndSeconds })
             .Concat(completedRecords.Select(record => record.EndSeconds))
@@ -53,6 +56,15 @@ public sealed class GcReportCalculator
                 group.Sum(item => item.Phase.DurationMs)))
             .OrderBy(sample => sample.EndSeconds)
             .ToList();
+        // 未指定边界时不裁剪：停顿行可能略晚于最后一条 GC 行，“全部”范围应计入全部停顿。
+        var allocationStalls = source.AllocationStalls
+            .Where(stall => (!startSeconds.HasValue || stall.Seconds >= effectiveStart)
+                            && (!endSeconds.HasValue || stall.Seconds <= effectiveEnd))
+            .ToList();
+        var stallSummary = new AllocationStallSummary(
+            allocationStalls.Count,
+            allocationStalls.Select(stall => stall.DurationMs).DefaultIfEmpty(0).Max(),
+            allocationStalls.Sum(stall => stall.DurationMs));
 
         if (cycles.Count == 0 && completions.Count == 0 && pauseCycles.Count == 0)
         {
@@ -94,7 +106,7 @@ public sealed class GcReportCalculator
         var heapCapacityLimitGb = CalculateHeapCapacityLimitGb(cycles, source.Events);
         var pauseDurationYAxis = CalculatePauseDurationYAxis(pauseCycles);
         var collector = DetectCollector(cycles.Count == 0 ? source.Events : cycles);
-        var health = BuildHealth(throughput, maxPausePhaseMs, allocationStallPeak, cycles);
+        var health = BuildHealth(throughput, maxPausePhaseMs, allocationStallPeak, stallSummary, cycles);
 
         var report = new GcReport
         {
@@ -122,9 +134,9 @@ public sealed class GcReportCalculator
         };
 
         AddOverviewKpis(report, throughput, totalPauseMs, averagePauseMs, maxPausePhaseMs,
-            latestMetaspace, allocationStallPeak, peakHeapMb, latestAfterHeapMb);
+            latestMetaspace, allocationStallPeak, stallSummary, peakHeapMb, latestAfterHeapMb);
         AddAdvancedKpis(report, cycles, spanSeconds, totalCycleGcMs, averageCycleDurationMs, maxCycleDurationMs,
-            totalConcurrentMs, totalReclaimedMb, pauseCompletionRecords);
+            totalConcurrentMs, totalReclaimedMb, pauseCompletionRecords, allocationStallPeak, stallSummary);
         AddStatistics(report, cycles, completions, totalCompletionMs);
         AddEventRows(report, cycles, completions, start);
         AddCharts(report, cycles, completions, pauseCycles, start);
@@ -272,6 +284,7 @@ public sealed class GcReportCalculator
         double maxPausePhaseMs,
         GcMetaspaceSample? latestMetaspace,
         int allocationStallPeak,
+        AllocationStallSummary stalls,
         double peakHeapMb,
         double? latestAfterHeapMb)
     {
@@ -279,13 +292,26 @@ public sealed class GcReportCalculator
         {
             Name = "非暂停时间占比",
             Value = throughput.HasValue ? $"{throughput.Value:0.####}%" : GcText.NotReported,
-            Description = throughput.HasValue ? "按当前窗口内 Pause 阶段时间计算" : "当前时间范围没有可计算的时间跨度",
+            Description = throughput.HasValue ? "按当前窗口内 Pause 阶段时间计算，不含分配停顿" : "当前时间范围没有可计算的时间跨度",
             Tone = !throughput.HasValue ? "Neutral" : throughput.Value >= 99.99 ? "Good" : "Warn"
         });
         report.OverviewKpis.Add(new GcKpi { Name = "总暂停时间", Value = GcText.FormatDuration(totalPauseMs), Description = "Cycle 内 Pause 阶段总和", Tone = totalPauseMs < 1000 ? "Good" : "Warn" });
         report.OverviewKpis.Add(new GcKpi { Name = "每Cycle暂停合计均值", Value = GcText.FormatMs(averagePauseMs), Description = "同一 GC id 内暂停耗时合计，再对含暂停的 cycle 求均值", Tone = averagePauseMs < 10 ? "Good" : "Warn" });
         report.OverviewKpis.Add(new GcKpi { Name = "最大暂停阶段", Value = GcText.FormatMs(maxPausePhaseMs), Description = "单个 Pause 阶段最大值", Tone = maxPausePhaseMs < 10 ? "Good" : "Warn" });
-        report.OverviewKpis.Add(new GcKpi { Name = "分配停顿计数峰值", Value = $"{allocationStallPeak:N0} 个", Description = "Allocation Stalls 阶段快照的计数峰值，并非停顿耗时", Tone = allocationStallPeak == 0 ? "Good" : "Warn" });
+        // 与健康判定口径一致：停顿耗时行或 Allocation Stalls 计数任一出现都视为有分配停顿。
+        report.OverviewKpis.Add(new GcKpi
+        {
+            Name = "最长分配停顿",
+            Value = stalls.Count > 0
+                ? GcText.FormatMs(stalls.MaxMs)
+                : allocationStallPeak > 0 ? GcText.NotReported : "无",
+            Description = stalls.Count > 0
+                ? $"共 {stalls.Count:N0} 次 Allocation Stall，应用线程等待 GC 释放内存的单次最长阻塞时间"
+                : allocationStallPeak > 0
+                    ? $"Allocation Stalls 计数峰值 {allocationStallPeak:N0} 个，但日志中没有单次停顿耗时行"
+                    : "日志中没有 Allocation Stall 记录",
+            Tone = stalls.Count == 0 && allocationStallPeak == 0 ? "Good" : "Warn"
+        });
         report.OverviewKpis.Add(new GcKpi { Name = "GC Cycle数", Value = report.CompletedCycleCount.ToString("N0"), Description = "按 GC id 聚合后的完成 cycle 数" });
         report.OverviewKpis.Add(new GcKpi { Name = "暂停完成事件数", Value = report.PauseCompletionCount.ToString("N0"), Description = "G1 Pause/Full GC 等暂停完成行数" });
         report.OverviewKpis.Add(new GcKpi { Name = "堆峰值", Value = GcText.FormatMb(peakHeapMb), Description = "ZGC High 列或 GC 前后堆使用量峰值" });
@@ -302,7 +328,9 @@ public sealed class GcReportCalculator
         double maxCycleDurationMs,
         double totalConcurrentMs,
         double totalReclaimedMb,
-        List<GcCompletionRecord> pauseCompletionRecords)
+        List<GcCompletionRecord> pauseCompletionRecords,
+        int allocationStallPeak,
+        AllocationStallSummary stalls)
     {
         var concurrentPhases = events.SelectMany(gc => gc.Phases).Where(phase => phase.IsConcurrent).ToList();
         var latestLoad = events.LastOrDefault(gc => gc.Load is not null)?.Load;
@@ -320,8 +348,18 @@ public sealed class GcReportCalculator
         report.AdvancedKpis.Add(new GcKpi { Name = "并发阶段最大", Value = GcText.FormatMs(concurrentPhases.Count == 0 ? null : concurrentPhases.Max(phase => phase.DurationMs)), Description = "所有 Concurrent 阶段峰值" });
         report.AdvancedKpis.Add(new GcKpi { Name = "暂停完成平均", Value = GcText.FormatMs(pauseCompletionRecords.Count == 0 ? null : pauseCompletionRecords.Average(record => record.DurationMs)), Description = "Pause/Full GC 完成行耗时均值" });
         report.AdvancedKpis.Add(new GcKpi { Name = "暂停完成最大", Value = GcText.FormatMs(pauseCompletionRecords.Count == 0 ? null : pauseCompletionRecords.Max(record => record.DurationMs)), Description = "Pause/Full GC 完成行耗时峰值" });
+        report.AdvancedKpis.Add(new GcKpi
+        {
+            Name = "分配停顿次数",
+            Value = $"{stalls.Count:N0} 次",
+            Description = stalls.Count == 0
+                ? "日志中没有 Allocation Stall 耗时行"
+                : $"线程累计阻塞 {GcText.FormatDuration(stalls.TotalMs)}，多个线程同时停顿会重复累计",
+            Tone = stalls.Count == 0 ? "Neutral" : "Warn"
+        });
+        report.AdvancedKpis.Add(new GcKpi { Name = "分配停顿计数峰值", Value = $"{allocationStallPeak:N0} 个", Description = "Allocation Stalls 阶段快照的计数峰值，并非停顿耗时", Tone = allocationStallPeak == 0 ? "Neutral" : "Warn" });
         report.AdvancedKpis.Add(new GcKpi { Name = "晋升总量", Value = GcText.FormatMb(totalPromoted), Description = "Promoted 行的可解析总和" });
-        report.AdvancedKpis.Add(new GcKpi { Name = "回收总量", Value = GcText.FormatMb(totalReclaimedMb), Description = "仅统计同时存在 GC 前后堆的 cycle" });
+        report.AdvancedKpis.Add(new GcKpi { Name = "回收总量", Value = GcText.FormatMb(totalReclaimedMb), Description = "GC 实际释放量：ZGC 优先取 Reclaimed 行（回收期间仍有分配，可能大于前后堆差值），其余取 GC 前后堆差值" });
         report.AdvancedKpis.Add(new GcKpi { Name = "平均回收速率", Value = $"{reclaimedRate:0.##} MB/s", Description = "回收总量 / 当前时间窗口，非收集器处理速度" });
         report.AdvancedKpis.Add(new GcKpi { Name = "最小MMU", Value = mmuSamples.Count == 0 ? GcText.NotReported : $"{mmuSamples.Min(sample => sample.Percent):0.##}%", Description = "日志报告的最小 MMU 百分比" });
         report.AdvancedKpis.Add(new GcKpi { Name = "最新系统负载", Value = latestLoad is null ? GcText.NotReported : $"{latestLoad.OneMinute:0.##} / {latestLoad.FiveMinutes:0.##} / {latestLoad.FifteenMinutes:0.##}", Description = "1/5/15 分钟 Load" });
@@ -675,16 +713,19 @@ public sealed class GcReportCalculator
         double? throughput,
         double maxPauseMs,
         int allocationStallPeak,
+        AllocationStallSummary stalls,
         List<GcEvent> events)
     {
         var recommendations = new List<string>();
         var heapTrend = CalculateAfterGcTrend(events);
+        var hasAllocationStall = allocationStallPeak > 0 || stalls.Count > 0;
+        var stallText = stalls.Count == 0 ? "" : $"，分配停顿 {stalls.Count:N0} 次，最长 {GcText.FormatMs(stalls.MaxMs)}";
 
         if (!throughput.HasValue)
         {
             recommendations.Add("当前时间范围没有可计算的时间跨度，非暂停时间占比未报告。");
         }
-        else if (throughput.Value >= 99.99 && maxPauseMs < 10 && allocationStallPeak == 0)
+        else if (throughput.Value >= 99.99 && maxPauseMs < 10 && !hasAllocationStall)
         {
             recommendations.Add("暂停时间非常低，当前日志中的 ZGC 活动整体健康。");
         }
@@ -702,27 +743,33 @@ public sealed class GcReportCalculator
             recommendations.Add("GC 后堆占用没有明显持续上升，当前日志未显示强内存泄漏信号。");
         }
 
-        if (allocationStallPeak > 0)
+        if (stalls.Count > 0)
+        {
+            recommendations.Add($"日志中出现 {stalls.Count:N0} 次分配停顿，最长 {GcText.FormatMs(stalls.MaxMs)}：应用线程在等待 GC 释放内存时被阻塞，这部分不计入非暂停时间占比。建议检查堆大小、分配速率以及 GC 是否跟得上分配。");
+        }
+        else if (allocationStallPeak > 0)
         {
             recommendations.Add("日志中出现并发分配停顿，建议检查堆大小、分配速率和应用线程在峰值时段的行为。");
         }
 
         if (!throughput.HasValue)
         {
-            return ("无数据", "非暂停时间占比未报告", $"当前时间范围没有可计算的时间跨度，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
+            return ("无数据", "非暂停时间占比未报告", $"当前时间范围没有可计算的时间跨度，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}{stallText}。", recommendations);
         }
 
-        if (throughput.Value >= 99.99 && maxPauseMs < 10 && allocationStallPeak == 0)
+        var summary = $"非暂停时间占比 {throughput.Value:0.####}%，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}{stallText}。";
+        if (throughput.Value >= 99.99 && maxPauseMs < 10 && !hasAllocationStall)
         {
-            return ("健康", "GC 活动健康", $"非暂停时间占比 {throughput.Value:0.####}%，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
+            return ("健康", "GC 活动健康", summary, recommendations);
         }
 
-        if (throughput.Value >= 99.9 && maxPauseMs < 100)
+        // 分配停顿同样阻塞应用线程，按与暂停相同的 100ms 阈值判定风险。
+        if (throughput.Value >= 99.9 && maxPauseMs < 100 && stalls.MaxMs < 100)
         {
-            return ("注意", "GC 活动需要关注", $"非暂停时间占比 {throughput.Value:0.####}%，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
+            return ("注意", "GC 活动需要关注", summary, recommendations);
         }
 
-        return ("风险", "GC 活动存在风险", $"非暂停时间占比 {throughput.Value:0.####}%，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
+        return ("风险", "GC 活动存在风险", summary, recommendations);
     }
 
     private static double CalculateAfterGcTrend(List<GcEvent> events)
