@@ -118,12 +118,12 @@ public sealed class GcReportCalculator
             StartSeconds = start,
             EndSeconds = end,
             SpanSeconds = spanSeconds,
+            HasGcData = true,
             HeapCapacityLimitGb = heapCapacityLimitGb,
             PauseDurationYAxisMinimumMs = pauseDurationYAxis.MinimumMs,
             PauseDurationYAxisMaximumMs = pauseDurationYAxis.MaximumMs,
             ParsedEventCount = source.Events.Count,
             CompletedCycleCount = cycles.Count,
-            CompletedEventCount = completions.Count,
             PauseCompletionCount = pauseCompletionRecords.Count,
             CollectorType = collector.Type,
             CollectorDescription = collector.Description,
@@ -133,9 +133,10 @@ public sealed class GcReportCalculator
             Recommendations = health.Recommendations
         };
 
-        AddOverviewKpis(report, collector, spanSeconds, throughput, totalCycleGcMs, averageCycleDurationMs, maxCycleDurationMs,
-            totalPauseMs, averagePauseMs, maxPausePhaseMs, totalReclaimedMb, latestMetaspace, allocationStallPeak, peakHeapMb, latestAfterHeapMb);
-        AddAdvancedKpis(report, cycles, completions, totalConcurrentMs, totalCompletionMs, pauseCompletionRecords);
+        AddOverviewKpis(report, throughput, totalPauseMs, averagePauseMs, maxPausePhaseMs,
+            latestMetaspace, allocationStallPeak, peakHeapMb, latestAfterHeapMb);
+        AddAdvancedKpis(report, cycles, spanSeconds, totalCycleGcMs, averageCycleDurationMs, maxCycleDurationMs,
+            totalConcurrentMs, totalReclaimedMb, pauseCompletionRecords);
         AddStatistics(report, cycles, completions, totalCompletionMs);
         AddEventRows(report, cycles, completions, start);
         AddCharts(report, cycles, completions, pauseCycles, start);
@@ -159,7 +160,6 @@ public sealed class GcReportCalculator
             HeapCapacityLimitGb = CalculateHeapCapacityLimitGb([], source.Events),
             ParsedEventCount = source.Events.Count,
             CompletedCycleCount = 0,
-            CompletedEventCount = 0,
             PauseCompletionCount = 0,
             CollectorType = collector.Type,
             CollectorDescription = collector.Description,
@@ -169,9 +169,6 @@ public sealed class GcReportCalculator
             Recommendations = ["请选择包含完整 JDK Unified GC 日志的文件，或切换到更大的时间范围。"]
         };
 
-        report.OverviewKpis.Add(new GcKpi { Name = "GC收集器类型", Value = collector.Type, Description = collector.Description, Tone = collector.Tone });
-        report.OverviewKpis.Add(new GcKpi { Name = "GC Cycle数", Value = "0", Description = "当前范围内没有完成的 GC cycle" });
-        report.OverviewKpis.Add(new GcKpi { Name = "完成事件数", Value = "0", Description = "当前范围内没有带耗时的完成行" });
         return report;
     }
 
@@ -281,80 +278,65 @@ public sealed class GcReportCalculator
     }
     private static void AddOverviewKpis(
         GcReport report,
-        CollectorSummary collector,
-        double spanSeconds,
         double? throughput,
-        double totalCycleGcMs,
-        double averageCycleDurationMs,
-        double maxCycleDurationMs,
         double totalPauseMs,
         double averagePauseMs,
         double maxPausePhaseMs,
-        double totalReclaimedMb,
         GcMetaspaceSample? latestMetaspace,
         int allocationStallPeak,
         double peakHeapMb,
         double? latestAfterHeapMb)
     {
-        var reclaimedRate = spanSeconds <= 0 ? 0 : totalReclaimedMb / spanSeconds;
-
-        report.OverviewKpis.Add(new GcKpi { Name = "GC收集器类型", Value = collector.Type, Description = collector.Description, Tone = collector.Tone });
-        report.OverviewKpis.Add(new GcKpi { Name = "GC Cycle数", Value = report.CompletedCycleCount.ToString("N0"), Description = "按 GC id 聚合后的完成 cycle 数" });
-        report.OverviewKpis.Add(new GcKpi { Name = "完成事件数", Value = report.CompletedEventCount.ToString("N0"), Description = "日志中带耗时的 [gc] 完成行数" });
-        report.OverviewKpis.Add(new GcKpi { Name = "暂停完成事件数", Value = report.PauseCompletionCount.ToString("N0"), Description = "G1 Pause/Full GC 等暂停完成行数" });
-        report.OverviewKpis.Add(new GcKpi { Name = "日志跨度", Value = GcText.FormatDuration(spanSeconds * 1000), Description = "按当前时间窗口计算" });
         report.OverviewKpis.Add(new GcKpi
         {
-            Name = "吞吐量",
+            Name = "非暂停时间占比",
             Value = throughput.HasValue ? $"{throughput.Value:0.####}%" : GcText.NotReported,
             Description = throughput.HasValue ? "按当前窗口内 Pause 阶段时间计算" : "当前时间范围没有可计算的时间跨度",
             Tone = !throughput.HasValue ? "Neutral" : throughput.Value >= 99.99 ? "Good" : "Warn"
         });
-        report.OverviewKpis.Add(new GcKpi { Name = "总GC耗时(Cycle)", Value = GcText.FormatDuration(totalCycleGcMs), Description = "按 GC id 聚合后的 cycle 耗时总和" });
         report.OverviewKpis.Add(new GcKpi { Name = "总暂停时间", Value = GcText.FormatDuration(totalPauseMs), Description = "Cycle 内 Pause 阶段总和", Tone = totalPauseMs < 1000 ? "Good" : "Warn" });
-        report.OverviewKpis.Add(new GcKpi { Name = "平均Cycle耗时", Value = GcText.FormatMs(averageCycleDurationMs), Description = "完成 GC cycle 平均耗时" });
-        report.OverviewKpis.Add(new GcKpi { Name = "最大Cycle耗时", Value = GcText.FormatMs(maxCycleDurationMs), Description = "单个 GC cycle 耗时峰值", Tone = maxCycleDurationMs > 5000 ? "Warn" : "Neutral" });
-        report.OverviewKpis.Add(new GcKpi { Name = "平均暂停时间", Value = GcText.FormatMs(averagePauseMs), Description = "按每个含暂停的 cycle 求均值", Tone = averagePauseMs < 10 ? "Good" : "Warn" });
+        report.OverviewKpis.Add(new GcKpi { Name = "每Cycle暂停合计均值", Value = GcText.FormatMs(averagePauseMs), Description = "同一 GC id 内暂停耗时合计，再对含暂停的 cycle 求均值", Tone = averagePauseMs < 10 ? "Good" : "Warn" });
         report.OverviewKpis.Add(new GcKpi { Name = "最大暂停阶段", Value = GcText.FormatMs(maxPausePhaseMs), Description = "单个 Pause 阶段最大值", Tone = maxPausePhaseMs < 10 ? "Good" : "Warn" });
-        report.OverviewKpis.Add(new GcKpi { Name = "回收总量", Value = GcText.FormatMb(totalReclaimedMb), Description = "仅统计同时存在 GC 前后堆的 cycle" });
-        report.OverviewKpis.Add(new GcKpi { Name = "平均回收速率", Value = $"{reclaimedRate:0.##} MB/s", Description = "回收总量 / 当前时间窗口" });
+        report.OverviewKpis.Add(new GcKpi { Name = "分配停顿计数峰值", Value = $"{allocationStallPeak:N0} 个", Description = "Allocation Stalls 阶段快照的计数峰值，并非停顿耗时", Tone = allocationStallPeak == 0 ? "Good" : "Warn" });
+        report.OverviewKpis.Add(new GcKpi { Name = "GC Cycle数", Value = report.CompletedCycleCount.ToString("N0"), Description = "按 GC id 聚合后的完成 cycle 数" });
+        report.OverviewKpis.Add(new GcKpi { Name = "暂停完成事件数", Value = report.PauseCompletionCount.ToString("N0"), Description = "G1 Pause/Full GC 等暂停完成行数" });
         report.OverviewKpis.Add(new GcKpi { Name = "堆峰值", Value = GcText.FormatMb(peakHeapMb), Description = "ZGC High 列或 GC 前后堆使用量峰值" });
         report.OverviewKpis.Add(new GcKpi { Name = "最新GC后堆", Value = GcText.FormatMb(latestAfterHeapMb), Description = "时间范围内最后一次 GC 后堆" });
         report.OverviewKpis.Add(new GcKpi { Name = "元空间使用", Value = GcText.FormatMb(latestMetaspace?.UsedMb), Description = latestMetaspace is null ? "日志未报告" : "最后一次报告的 used 值" });
-        report.OverviewKpis.Add(new GcKpi { Name = "最大并发分配停顿", Value = allocationStallPeak.ToString("N0"), Description = "Allocation Stalls 阶段快照峰值", Tone = allocationStallPeak == 0 ? "Good" : "Warn" });
     }
 
     private static void AddAdvancedKpis(
         GcReport report,
         List<GcEvent> events,
-        List<GcCompletionRecord> completions,
+        double spanSeconds,
+        double totalCycleGcMs,
+        double averageCycleDurationMs,
+        double maxCycleDurationMs,
         double totalConcurrentMs,
-        double totalCompletionMs,
+        double totalReclaimedMb,
         List<GcCompletionRecord> pauseCompletionRecords)
     {
         var concurrentPhases = events.SelectMany(gc => gc.Phases).Where(phase => phase.IsConcurrent).ToList();
-        var pausePhases = events.SelectMany(gc => gc.Phases).Where(phase => phase.IsPause).ToList();
-        var youngSamples = events.Count(gc => gc.GenerationStats.ContainsKey("Young"));
-        var oldSamples = events.Count(gc => gc.GenerationStats.ContainsKey("Old"));
         var latestLoad = events.LastOrDefault(gc => gc.Load is not null)?.Load;
         var mmuSamples = events.SelectMany(gc => gc.MmuSamples).ToList();
         var totalPromoted = events
             .SelectMany(gc => gc.GenerationStats.Values)
             .Sum(stats => stats.PromotedMb ?? 0);
 
-        report.AdvancedKpis.Add(new GcKpi { Name = "完成行总耗时", Value = GcText.FormatDuration(totalCompletionMs), Description = "所有带耗时 [gc] 完成行总和" });
-        report.AdvancedKpis.Add(new GcKpi { Name = "完成行平均", Value = GcText.FormatMs(completions.Count == 0 ? null : completions.Average(record => record.DurationMs)), Description = "完成行耗时均值" });
+        var reclaimedRate = spanSeconds <= 0 ? 0 : totalReclaimedMb / spanSeconds;
+
+        report.AdvancedKpis.Add(new GcKpi { Name = "总GC耗时(Cycle)", Value = GcText.FormatDuration(totalCycleGcMs), Description = "按 GC id 聚合后的 cycle 耗时总和，非应用停顿总时间" });
+        report.AdvancedKpis.Add(new GcKpi { Name = "平均Cycle耗时", Value = GcText.FormatMs(averageCycleDurationMs), Description = "完成 GC cycle 平均耗时" });
+        report.AdvancedKpis.Add(new GcKpi { Name = "最大Cycle耗时", Value = GcText.FormatMs(maxCycleDurationMs), Description = "单个 GC cycle 耗时峰值", Tone = maxCycleDurationMs > 5000 ? "Warn" : "Neutral" });
+        report.AdvancedKpis.Add(new GcKpi { Name = "并发GC总耗时", Value = GcText.FormatDuration(totalConcurrentMs), Description = "Concurrent 阶段总和" });
+        report.AdvancedKpis.Add(new GcKpi { Name = "并发阶段最大", Value = GcText.FormatMs(concurrentPhases.Count == 0 ? null : concurrentPhases.Max(phase => phase.DurationMs)), Description = "所有 Concurrent 阶段峰值" });
         report.AdvancedKpis.Add(new GcKpi { Name = "暂停完成平均", Value = GcText.FormatMs(pauseCompletionRecords.Count == 0 ? null : pauseCompletionRecords.Average(record => record.DurationMs)), Description = "Pause/Full GC 完成行耗时均值" });
         report.AdvancedKpis.Add(new GcKpi { Name = "暂停完成最大", Value = GcText.FormatMs(pauseCompletionRecords.Count == 0 ? null : pauseCompletionRecords.Max(record => record.DurationMs)), Description = "Pause/Full GC 完成行耗时峰值" });
-        report.AdvancedKpis.Add(new GcKpi { Name = "并发GC总耗时", Value = GcText.FormatDuration(totalConcurrentMs), Description = "Concurrent 阶段总和" });
-        report.AdvancedKpis.Add(new GcKpi { Name = "并发阶段平均", Value = GcText.FormatMs(concurrentPhases.Count == 0 ? null : concurrentPhases.Average(phase => phase.DurationMs)), Description = "所有 Concurrent 阶段均值" });
-        report.AdvancedKpis.Add(new GcKpi { Name = "并发阶段最大", Value = GcText.FormatMs(concurrentPhases.Count == 0 ? null : concurrentPhases.Max(phase => phase.DurationMs)), Description = "所有 Concurrent 阶段峰值" });
-        report.AdvancedKpis.Add(new GcKpi { Name = "暂停阶段样本", Value = pausePhases.Count.ToString("N0"), Description = "Pause 阶段行数" });
-        report.AdvancedKpis.Add(new GcKpi { Name = "年轻代样本", Value = youngSamples.ToString("N0"), Description = "报告年轻代统计的事件数" });
-        report.AdvancedKpis.Add(new GcKpi { Name = "老年代样本", Value = oldSamples.ToString("N0"), Description = "报告老年代统计的事件数" });
+        report.AdvancedKpis.Add(new GcKpi { Name = "晋升总量", Value = GcText.FormatMb(totalPromoted), Description = "Promoted 行的可解析总和" });
+        report.AdvancedKpis.Add(new GcKpi { Name = "回收总量", Value = GcText.FormatMb(totalReclaimedMb), Description = "仅统计同时存在 GC 前后堆的 cycle" });
+        report.AdvancedKpis.Add(new GcKpi { Name = "平均回收速率", Value = $"{reclaimedRate:0.##} MB/s", Description = "回收总量 / 当前时间窗口，非收集器处理速度" });
         report.AdvancedKpis.Add(new GcKpi { Name = "最小MMU", Value = mmuSamples.Count == 0 ? GcText.NotReported : $"{mmuSamples.Min(sample => sample.Percent):0.##}%", Description = "日志报告的最小 MMU 百分比" });
         report.AdvancedKpis.Add(new GcKpi { Name = "最新系统负载", Value = latestLoad is null ? GcText.NotReported : $"{latestLoad.OneMinute:0.##} / {latestLoad.FiveMinutes:0.##} / {latestLoad.FifteenMinutes:0.##}", Description = "1/5/15 分钟 Load" });
-        report.AdvancedKpis.Add(new GcKpi { Name = "晋升总量", Value = GcText.FormatMb(totalPromoted), Description = "Promoted 行的可解析总和" });
     }
 
     private static void AddStatistics(GcReport report, List<GcEvent> events, List<GcCompletionRecord> completions, double totalCompletionMs)
@@ -408,7 +390,6 @@ public sealed class GcReportCalculator
             report.GenerationStatistics.Add(new GcGenerationSummaryRow
             {
                 Name = generationName == "Young" ? "年轻代" : "老年代",
-                Samples = samples.Count,
                 PeakUsedMb = samples
                     .SelectMany(stats => new[] { stats.UsedBeforeMb, stats.UsedAfterMb })
                     .Where(value => value.HasValue)
@@ -450,8 +431,6 @@ public sealed class GcReportCalculator
                 HeapAfterText = GcText.FormatMb(record.HeapAfterMb),
                 ReclaimedText = GcText.FormatMb(record.ReclaimedMb),
                 DurationText = GcText.FormatMs(record.DurationMs),
-                PauseText = record.IsPause ? GcText.FormatMs(record.DurationMs) : GcText.NotReported,
-                ConcurrentText = record.IsConcurrent ? GcText.FormatMs(record.DurationMs) : GcText.NotReported,
                 MetaspaceText = GcText.FormatMb(cycle?.Metaspace?.UsedMb),
                 AllocationStallPeak = cycle?.AllocationStallPeak ?? 0
             });
@@ -480,15 +459,8 @@ public sealed class GcReportCalculator
         report.DurationSeries.Add(MakeSeries("GC Cycle耗时", Palette[4], events
             .Select(gc => MakeTimePoint(gc, startSeconds, gc.DurationMs ?? 0, "ms", "GC Cycle耗时"))));
 
-        report.PauseSeries.Add(MakeSeries("暂停耗时", Palette[5], pauseCycles
-            .Select(sample => MakeTimePoint(sample.Event, sample.EndSeconds, startSeconds, sample.DurationMs, "ms", "暂停耗时"))));
-
-        var cumulative = 0d;
-        report.CumulativeDurationSeries.Add(MakeSeries("累计GC耗时", Palette[2], events.Select(gc =>
-        {
-            cumulative += gc.DurationMs ?? 0;
-            return MakeTimePoint(gc, startSeconds, cumulative / 1000d, "秒", "累计GC耗时");
-        })));
+        report.PauseSeries.Add(MakeSeries("每Cycle暂停合计", Palette[5], pauseCycles
+            .Select(sample => MakeTimePoint(sample.Event, sample.EndSeconds, startSeconds, sample.DurationMs, "ms", "每Cycle暂停合计"))));
 
         report.CauseSeries.Add(MakeSeries("GC原因", Palette[0], completions
             .GroupBy(record => TranslateCause(record.CauseRaw))
@@ -559,9 +531,6 @@ public sealed class GcReportCalculator
         report.MetaspaceSeries.Add(MakeSeries("元空间已提交", Palette[5], events
             .Where(gc => gc.Metaspace is not null)
             .Select(gc => MakeTimePoint(gc, startSeconds, gc.Metaspace!.CommittedMb, "MB", "元空间已提交"))));
-        report.MetaspaceSeries.Add(MakeSeries("元空间保留", Palette[7], events
-            .Where(gc => gc.Metaspace?.ReservedMb.HasValue == true)
-            .Select(gc => MakeTimePoint(gc, startSeconds, gc.Metaspace!.ReservedMb.GetValueOrDefault(), "MB", "元空间保留"))));
     }
 
     private static void AddLoadSeries(GcReport report, List<GcEvent> events, double startSeconds)
@@ -725,7 +694,7 @@ public sealed class GcReportCalculator
 
         if (!throughput.HasValue)
         {
-            recommendations.Add("当前时间范围没有可计算的时间跨度，吞吐量未报告。");
+            recommendations.Add("当前时间范围没有可计算的时间跨度，非暂停时间占比未报告。");
         }
         else if (throughput.Value >= 99.99 && maxPauseMs < 10 && allocationStallPeak == 0)
         {
@@ -752,20 +721,20 @@ public sealed class GcReportCalculator
 
         if (!throughput.HasValue)
         {
-            return ("无数据", "吞吐量未报告", $"当前时间范围没有可计算的时间跨度，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
+            return ("无数据", "非暂停时间占比未报告", $"当前时间范围没有可计算的时间跨度，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
         }
 
         if (throughput.Value >= 99.99 && maxPauseMs < 10 && allocationStallPeak == 0)
         {
-            return ("健康", "GC 活动健康", $"吞吐量 {throughput.Value:0.####}%，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
+            return ("健康", "GC 活动健康", $"非暂停时间占比 {throughput.Value:0.####}%，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
         }
 
         if (throughput.Value >= 99.9 && maxPauseMs < 100)
         {
-            return ("注意", "GC 活动需要关注", $"吞吐量 {throughput.Value:0.####}%，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
+            return ("注意", "GC 活动需要关注", $"非暂停时间占比 {throughput.Value:0.####}%，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
         }
 
-        return ("风险", "GC 活动存在风险", $"吞吐量 {throughput.Value:0.####}%，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
+        return ("风险", "GC 活动存在风险", $"非暂停时间占比 {throughput.Value:0.####}%，最大暂停阶段 {GcText.FormatMs(maxPauseMs)}。", recommendations);
     }
 
     private static double CalculateAfterGcTrend(List<GcEvent> events)

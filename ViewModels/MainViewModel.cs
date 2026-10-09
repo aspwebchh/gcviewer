@@ -117,12 +117,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
             report = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasReport));
+            OnPropertyChanged(nameof(HasGcData));
+            OnPropertyChanged(nameof(EmptyStateMessage));
             OnPropertyChanged(nameof(FileSummary));
             OnPropertyChanged(nameof(RangeSummary));
         }
     }
 
     public bool HasReport => Report is not null;
+    public bool HasGcData => Report?.HasGcData == true;
+    public string EmptyStateMessage => Report is null
+        ? "请选择 GC 日志开始分析。"
+        : "当前时间范围没有可展示的 GC 数据，请切换范围或选择其他日志。";
 
     public TimeRangeOption? SelectedTimeRange
     {
@@ -149,7 +155,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return "选择日志后会在这里显示文件大小、行数和解析结果。";
             }
 
-            return $"{Report.FileName} · {GcText.FormatFileSize(Report.FileSizeBytes)} · {Report.LineCount:N0} 行 · 当前范围 {Report.CompletedCycleCount:N0} 个 cycle / {Report.CompletedEventCount:N0} 条完成行";
+            return $"{Report.FileName} · {GcText.FormatFileSize(Report.FileSizeBytes)} · {Report.LineCount:N0} 行 · 当前范围 {Report.CompletedCycleCount:N0} 个 cycle";
         }
     }
 
@@ -162,7 +168,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return "";
             }
 
-            return $"时间轴 {GcText.FormatRelativeTime(0)} 到 {GcText.FormatRelativeTime(Report.SpanSeconds)}";
+            return $"收集器：{Report.CollectorType} · 日志跨度：{GcText.FormatDuration(Report.SpanSeconds * 1000d)}\n时间轴 {GcText.FormatRelativeTime(0)} 到 {GcText.FormatRelativeTime(Report.SpanSeconds)}";
         }
     }
 
@@ -214,7 +220,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Report = calculator.Build(result);
 
             var warningText = result.Warnings.Count == 0 ? "" : $" 提示：{string.Join("；", result.Warnings)}";
-            StatusMessage = $"分析完成：识别 {result.Events.Count:N0} 个 GC id，当前范围 {Report.CompletedCycleCount:N0} 个 cycle / {Report.CompletedEventCount:N0} 条完成行。{warningText}";
+            StatusMessage = $"分析完成：识别 {result.Events.Count:N0} 个 GC id，当前范围 {Report.CompletedCycleCount:N0} 个 cycle。{warningText}";
             ProgressValue = 100;
         }
         catch (Exception ex)
@@ -275,14 +281,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (!SelectedTimeRange.DurationSeconds.HasValue)
         {
             Report = calculator.Build(parseResult);
-            StatusMessage = $"已切换时间范围：全部，{Report.CompletedCycleCount:N0} 个 cycle / {Report.CompletedEventCount:N0} 条完成行。";
+            StatusMessage = $"已切换时间范围：全部，{Report.CompletedCycleCount:N0} 个 cycle。";
             return;
         }
 
         var end = completed.Last().EndSeconds;
         var start = Math.Max(completed.First().EndSeconds, end - SelectedTimeRange.DurationSeconds.Value);
         Report = calculator.Build(parseResult, start, end);
-        StatusMessage = $"已切换时间范围：{SelectedTimeRange.Name}，{Report.CompletedCycleCount:N0} 个 cycle / {Report.CompletedEventCount:N0} 条完成行。";
+        StatusMessage = $"已切换时间范围：{SelectedTimeRange.Name}，{Report.CompletedCycleCount:N0} 个 cycle。";
     }
 
     private void RaiseCommandStates()

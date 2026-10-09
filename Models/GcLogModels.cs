@@ -147,11 +147,11 @@ public sealed class GcReport
     public double StartSeconds { get; init; }
     public double EndSeconds { get; init; }
     public double SpanSeconds { get; init; }
+    public bool HasGcData { get; init; }
     public double HeapCapacityLimitGb { get; init; } = double.NaN;
     public double PauseDurationYAxisMinimumMs { get; init; } = double.NaN;
     public double PauseDurationYAxisMaximumMs { get; init; } = double.NaN;
     public int CompletedCycleCount { get; init; }
-    public int CompletedEventCount { get; init; }
     public int PauseCompletionCount { get; init; }
     public int ParsedEventCount { get; init; }
     public required string CollectorType { get; init; }
@@ -172,7 +172,6 @@ public sealed class GcReport
     public ObservableCollection<ChartSeries> HeapReclaimedSeries { get; init; } = new();
     public ObservableCollection<ChartSeries> DurationSeries { get; init; } = new();
     public ObservableCollection<ChartSeries> PauseSeries { get; init; } = new();
-    public ObservableCollection<ChartSeries> CumulativeDurationSeries { get; init; } = new();
     public ObservableCollection<ChartSeries> CauseSeries { get; init; } = new();
     public ObservableCollection<ChartSeries> TypeSeries { get; init; } = new();
     public ObservableCollection<ChartSeries> PhaseTotalSeries { get; init; } = new();
@@ -218,7 +217,6 @@ public sealed class GcPhaseStatisticRow
 public sealed class GcGenerationSummaryRow
 {
     public required string Name { get; init; }
-    public int Samples { get; init; }
     public double? PeakUsedMb { get; init; }
     public double? LatestUsedMb { get; init; }
     public double? TotalReclaimedMb { get; init; }
@@ -237,8 +235,6 @@ public sealed class GcEventRow
     public string HeapAfterText { get; init; } = GcText.NotReported;
     public string ReclaimedText { get; init; } = GcText.NotReported;
     public string DurationText { get; init; } = GcText.NotReported;
-    public string PauseText { get; init; } = GcText.NotReported;
-    public string ConcurrentText { get; init; } = GcText.NotReported;
     public string MetaspaceText { get; init; } = GcText.NotReported;
     public int AllocationStallPeak { get; init; }
 }

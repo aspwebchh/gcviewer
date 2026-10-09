@@ -30,9 +30,9 @@
         </Style>
 
         <Style x:Key="KpiCard" TargetType="Border">
-            <Setter Property="Width" Value="188" />
             <Setter Property="MinHeight" Value="108" />
-            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Margin" Value="6,0,6,12" />
             <Setter Property="Padding" Value="14" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="BorderBrush" Value="#DCE4EF" />
@@ -48,6 +48,47 @@
                     <Setter Property="BorderBrush" Value="#F4C979" />
                 </DataTrigger>
             </Style.Triggers>
+        </Style>
+
+        <Style x:Key="KpiItems" TargetType="ItemsControl">
+            <Setter Property="Margin" Value="-6,0,-6,2" />
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ContentPresenter">
+                        <Setter Property="HorizontalAlignment" Value="Stretch" />
+                        <Setter Property="VerticalAlignment" Value="Stretch" />
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ReportContent" TargetType="FrameworkElement">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasGcData}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="EmptyState" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#687789" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="24" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasGcData}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="TableText" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
         </Style>
 
         <Style x:Key="PanelBorder" TargetType="Border">
@@ -87,7 +128,7 @@
 
                 <StackPanel Orientation="Vertical">
                     <TextBlock Text="GC日志中文报表" Foreground="White" FontSize="24" FontWeight="Bold" />
-                    <TextBlock Text="{Binding FileSummary}" Foreground="#C9D6E8" FontSize="13" Margin="0,4,0,0" />
+                    <TextBlock Text="{Binding FileSummary}" ToolTip="{Binding FileSummary}" TextTrimming="CharacterEllipsis" Foreground="#C9D6E8" FontSize="13" Margin="0,4,12,0" />
                 </StackPanel>
 
                 <ComboBox Grid.Column="1"
@@ -128,8 +169,8 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="{Binding Report.HealthLevel, TargetNullValue=等待分析}" Foreground="#15B0A7" FontSize="28" FontWeight="Bold" />
-                                    <TextBlock Text="{Binding Report.HealthTitle, TargetNullValue=请选择 GC 日志}" Foreground="#172033" FontSize="18" FontWeight="SemiBold" Margin="0,8,0,0" />
-                                    <TextBlock Text="{Binding RangeSummary}" Foreground="#5C6B80" Margin="0,10,0,0" />
+                                    <TextBlock Text="{Binding Report.HealthTitle, TargetNullValue=请选择 GC 日志}" TextWrapping="Wrap" Foreground="#172033" FontSize="18" FontWeight="SemiBold" Margin="0,8,12,0" />
+                                    <TextBlock Text="{Binding RangeSummary}" ToolTip="{Binding Report.CollectorDescription}" TextWrapping="Wrap" Foreground="#5C6B80" Margin="0,10,12,0" />
                                 </StackPanel>
                                 <ItemsControl Grid.Column="1" ItemsSource="{Binding Report.Recommendations}">
                                     <ItemsControl.ItemTemplate>
@@ -141,257 +182,266 @@
                             </Grid>
                         </Border>
 
-                        <TextBlock Style="{StaticResource SectionTitle}" Text="关键指标" />
-                        <ItemsControl ItemsSource="{Binding Report.OverviewKpis}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Style="{StaticResource KpiCard}">
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Name}" Foreground="#5C6B80" FontSize="12" />
-                                            <TextBlock Text="{Binding Value}" Foreground="#172033" FontSize="23" FontWeight="Bold" Margin="0,8,0,4" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding Description}" Foreground="#687789" FontSize="11" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <TextBlock Style="{StaticResource EmptyState}" Text="{Binding EmptyStateMessage}" />
+                        <StackPanel Style="{StaticResource ReportContent}">
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="关键指标" />
+                            <ItemsControl Style="{StaticResource KpiItems}" ItemsSource="{Binding Report.OverviewKpis}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="5" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource KpiCard}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" TextWrapping="Wrap" Foreground="#5C6B80" FontSize="12" />
+                                                <TextBlock Text="{Binding Value}" Foreground="#172033" FontSize="23" FontWeight="Bold" Margin="0,8,0,4" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Description}" Foreground="#687789" FontSize="11" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
-                                <controls:SimpleChart Title="GC后堆使用趋势" Kind="Area" XAxisTitle="相对时间" YAxisTitle="堆大小" ValueSuffix="GB" YAxisMaximum="{Binding Report.HeapCapacityLimitGb}" Height="320" Series="{Binding Report.HeapAfterSeries}" />
-                            </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                                <controls:SimpleChart Title="GC Cycle耗时趋势" Kind="Line" XAxisTitle="相对时间" YAxisTitle="耗时" ValueSuffix="ms" Height="320" Series="{Binding Report.DurationSeries}" />
-                            </Border>
-                        </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+                                    <controls:SimpleChart Title="GC后堆使用趋势" Kind="Area" XAxisTitle="相对时间" YAxisTitle="堆大小" ValueSuffix="GB" YAxisMaximum="{Binding Report.HeapCapacityLimitGb}" Height="320" Series="{Binding Report.HeapAfterSeries}" />
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                    <controls:SimpleChart Title="每Cycle暂停合计" Kind="Line" XAxisTitle="相对时间" YAxisTitle="暂停合计" ValueSuffix="ms" YAxisMinimum="{Binding Report.PauseDurationYAxisMinimumMs}" YAxisMaximum="{Binding Report.PauseDurationYAxisMaximumMs}" Height="320" Series="{Binding Report.PauseSeries}" />
+                                </Border>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
 
             <TabItem Header="堆内存">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="4">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
-                                <controls:SimpleChart Title="GC前堆使用量" Kind="Area" XAxisTitle="相对时间" YAxisTitle="堆大小" ValueSuffix="GB" YAxisMaximum="{Binding Report.HeapCapacityLimitGb}" Height="330" Series="{Binding Report.HeapBeforeSeries}" />
+                <Grid>
+                    <TextBlock Style="{StaticResource EmptyState}" Text="{Binding EmptyStateMessage}" />
+                    <ScrollViewer Style="{StaticResource ReportContent}" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+                                    <controls:SimpleChart Title="GC前堆使用量" Kind="Area" XAxisTitle="相对时间" YAxisTitle="堆大小" ValueSuffix="GB" YAxisMaximum="{Binding Report.HeapCapacityLimitGb}" Height="330" Series="{Binding Report.HeapBeforeSeries}" />
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                    <controls:SimpleChart Title="GC后堆使用量" Kind="Area" XAxisTitle="相对时间" YAxisTitle="堆大小" ValueSuffix="GB" YAxisMaximum="{Binding Report.HeapCapacityLimitGb}" Height="330" Series="{Binding Report.HeapAfterSeries}" />
+                                </Border>
+                            </Grid>
+                            <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                <controls:SimpleChart Title="每个Cycle回收量" Kind="Bar" XAxisTitle="GC Cycle" YAxisTitle="回收量" ValueSuffix="GB" Height="330" Series="{Binding Report.HeapReclaimedSeries}" />
                             </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                                <controls:SimpleChart Title="GC后堆使用量" Kind="Area" XAxisTitle="相对时间" YAxisTitle="堆大小" ValueSuffix="GB" YAxisMaximum="{Binding Report.HeapCapacityLimitGb}" Height="330" Series="{Binding Report.HeapAfterSeries}" />
-                            </Border>
-                        </Grid>
-                        <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                            <controls:SimpleChart Title="每个Cycle回收量" Kind="Bar" XAxisTitle="GC Cycle" YAxisTitle="回收量" ValueSuffix="GB" Height="330" Series="{Binding Report.HeapReclaimedSeries}" />
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </TabItem>
 
             <TabItem Header="GC耗时">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="4">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+                <Grid>
+                    <TextBlock Style="{StaticResource EmptyState}" Text="{Binding EmptyStateMessage}" />
+                    <ScrollViewer Style="{StaticResource ReportContent}" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="4">
+                            <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                <controls:SimpleChart Title="每Cycle暂停合计" Kind="Line" XAxisTitle="相对时间" YAxisTitle="暂停合计" ValueSuffix="ms" YAxisMinimum="{Binding Report.PauseDurationYAxisMinimumMs}" YAxisMaximum="{Binding Report.PauseDurationYAxisMaximumMs}" Height="330" Series="{Binding Report.PauseSeries}" />
+                            </Border>
+                            <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
                                 <controls:SimpleChart Title="GC Cycle耗时" Kind="Line" XAxisTitle="相对时间" YAxisTitle="耗时" ValueSuffix="ms" Height="330" Series="{Binding Report.DurationSeries}" />
                             </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                                <controls:SimpleChart Title="暂停耗时" Kind="Line" XAxisTitle="相对时间" YAxisTitle="暂停" ValueSuffix="ms" YAxisMinimum="{Binding Report.PauseDurationYAxisMinimumMs}" YAxisMaximum="{Binding Report.PauseDurationYAxisMaximumMs}" Height="330" Series="{Binding Report.PauseSeries}" />
-                            </Border>
-                        </Grid>
-                        <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                            <controls:SimpleChart Title="累计GC耗时" Kind="Area" XAxisTitle="相对时间" YAxisTitle="累计耗时" ValueSuffix="秒" Height="330" Series="{Binding Report.CumulativeDurationSeries}" />
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </TabItem>
 
             <TabItem Header="原因与类型">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="4">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="360" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
-                                <controls:SimpleChart Title="GC原因分布" Kind="Donut" Height="340" Series="{Binding Report.CauseSeries}" />
-                            </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                                <controls:SimpleChart Title="GC类型次数" Kind="Bar" XAxisTitle="类型" YAxisTitle="次数" Height="340" Series="{Binding Report.TypeSeries}" />
-                            </Border>
-                        </Grid>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource SectionTitle}" Text="原因统计" />
-                                    <DataGrid Height="260" ItemsSource="{Binding Report.CauseStatistics}">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="原因" Binding="{Binding Name}" Width="*" />
-                                            <DataGridTextColumn Header="完成行数" Binding="{Binding Count}" Width="90" />
-                                            <DataGridTextColumn Header="总耗时" Binding="{Binding TotalDurationText}" Width="120" />
-                                            <DataGridTextColumn Header="平均耗时" Binding="{Binding AverageDurationText}" Width="120" />
-                                            <DataGridTextColumn Header="耗时占比" Binding="{Binding DurationPercentText}" Width="90" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource SectionTitle}" Text="类型统计" />
-                                    <DataGrid Height="260" ItemsSource="{Binding Report.TypeStatistics}">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="类型" Binding="{Binding Name}" Width="*" />
-                                            <DataGridTextColumn Header="完成行数" Binding="{Binding Count}" Width="90" />
-                                            <DataGridTextColumn Header="总耗时" Binding="{Binding TotalDurationText}" Width="120" />
-                                            <DataGridTextColumn Header="平均耗时" Binding="{Binding AverageDurationText}" Width="120" />
-                                            <DataGridTextColumn Header="耗时占比" Binding="{Binding DurationPercentText}" Width="90" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </StackPanel>
-                </ScrollViewer>
+                <Grid>
+                    <TextBlock Style="{StaticResource EmptyState}" Text="{Binding EmptyStateMessage}" />
+                    <ScrollViewer Style="{StaticResource ReportContent}" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="360" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+                                    <controls:SimpleChart Title="GC原因分布" Kind="Donut" Height="340" Series="{Binding Report.CauseSeries}" />
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                    <controls:SimpleChart Title="GC类型次数" Kind="Bar" XAxisTitle="类型" YAxisTitle="次数" Height="340" Series="{Binding Report.TypeSeries}" />
+                                </Border>
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource SectionTitle}" Text="原因统计" />
+                                        <DataGrid Height="260" ItemsSource="{Binding Report.CauseStatistics}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="原因" Binding="{Binding Name}" Width="1.6*" MinWidth="120" ElementStyle="{StaticResource TableText}" />
+                                                <DataGridTextColumn Header="完成行数" Binding="{Binding Count}" Width="*" MinWidth="70" />
+                                                <DataGridTextColumn Header="总耗时" Binding="{Binding TotalDurationText}" Width="*" MinWidth="75" ElementStyle="{StaticResource TableText}" />
+                                                <DataGridTextColumn Header="平均耗时" Binding="{Binding AverageDurationText}" Width="*" MinWidth="75" ElementStyle="{StaticResource TableText}" />
+                                                <DataGridTextColumn Header="耗时占比" Binding="{Binding DurationPercentText}" Width="*" MinWidth="70" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource SectionTitle}" Text="类型统计" />
+                                        <DataGrid Height="260" ItemsSource="{Binding Report.TypeStatistics}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="类型" Binding="{Binding Name}" Width="1.6*" MinWidth="120" ElementStyle="{StaticResource TableText}" />
+                                                <DataGridTextColumn Header="完成行数" Binding="{Binding Count}" Width="*" MinWidth="70" />
+                                                <DataGridTextColumn Header="总耗时" Binding="{Binding TotalDurationText}" Width="*" MinWidth="75" ElementStyle="{StaticResource TableText}" />
+                                                <DataGridTextColumn Header="平均耗时" Binding="{Binding AverageDurationText}" Width="*" MinWidth="75" ElementStyle="{StaticResource TableText}" />
+                                                <DataGridTextColumn Header="耗时占比" Binding="{Binding DurationPercentText}" Width="*" MinWidth="70" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </TabItem>
 
             <TabItem Header="分代与元空间">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="4">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
-                                <controls:SimpleChart Title="分代使用量" Kind="Line" XAxisTitle="相对时间" YAxisTitle="大小" ValueSuffix="GB" Height="330" Series="{Binding Report.GenerationSeries}" />
+                <Grid>
+                    <TextBlock Style="{StaticResource EmptyState}" Text="{Binding EmptyStateMessage}" />
+                    <ScrollViewer Style="{StaticResource ReportContent}" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+                                    <controls:SimpleChart Title="分代使用量" Kind="Line" XAxisTitle="相对时间" YAxisTitle="大小" ValueSuffix="GB" Height="330" Series="{Binding Report.GenerationSeries}" />
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                    <controls:SimpleChart Title="元空间" Kind="Line" XAxisTitle="相对时间" YAxisTitle="大小" ValueSuffix="MB" Height="330" Series="{Binding Report.MetaspaceSeries}" />
+                                </Border>
+                            </Grid>
+                            <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="分代统计" />
+                                    <DataGrid MaxHeight="120" ItemsSource="{Binding Report.GenerationStatistics}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="分代" Binding="{Binding Name}" Width="*" />
+                                            <DataGridTextColumn Header="峰值使用" Binding="{Binding PeakUsedText}" Width="*" />
+                                            <DataGridTextColumn Header="最新使用" Binding="{Binding LatestUsedText}" Width="*" />
+                                            <DataGridTextColumn Header="回收总量" Binding="{Binding TotalReclaimedText}" Width="*" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </StackPanel>
                             </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                                <controls:SimpleChart Title="元空间" Kind="Line" XAxisTitle="相对时间" YAxisTitle="大小" ValueSuffix="MB" Height="330" Series="{Binding Report.MetaspaceSeries}" />
-                            </Border>
-                        </Grid>
-                        <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource SectionTitle}" Text="分代统计" />
-                                <DataGrid Height="240" ItemsSource="{Binding Report.GenerationStatistics}">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="分代" Binding="{Binding Name}" Width="*" />
-                                        <DataGridTextColumn Header="样本数" Binding="{Binding Samples}" Width="120" />
-                                        <DataGridTextColumn Header="峰值使用" Binding="{Binding PeakUsedText}" Width="160" />
-                                        <DataGridTextColumn Header="最新使用" Binding="{Binding LatestUsedText}" Width="160" />
-                                        <DataGridTextColumn Header="回收总量" Binding="{Binding TotalReclaimedText}" Width="160" />
-                                    </DataGrid.Columns>
-                                </DataGrid>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </TabItem>
 
             <TabItem Header="阶段与高级">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="4">
-                        <TextBlock Style="{StaticResource SectionTitle}" Text="高级指标" />
-                        <ItemsControl ItemsSource="{Binding Report.AdvancedKpis}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Style="{StaticResource KpiCard}">
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Name}" Foreground="#5C6B80" FontSize="12" />
-                                            <TextBlock Text="{Binding Value}" Foreground="#172033" FontSize="22" FontWeight="Bold" Margin="0,8,0,4" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding Description}" Foreground="#687789" FontSize="11" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                <Grid>
+                    <TextBlock Style="{StaticResource EmptyState}" Text="{Binding EmptyStateMessage}" />
+                    <ScrollViewer Style="{StaticResource ReportContent}" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="4">
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="高级指标" />
+                            <ItemsControl Style="{StaticResource KpiItems}" ItemsSource="{Binding Report.AdvancedKpis}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="4" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource KpiCard}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" TextWrapping="Wrap" Foreground="#5C6B80" FontSize="12" />
+                                                <TextBlock Text="{Binding Value}" Foreground="#172033" FontSize="22" FontWeight="Bold" Margin="0,8,0,4" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Description}" Foreground="#687789" FontSize="11" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
-                                <controls:SimpleChart Title="阶段总耗时" Kind="Bar" XAxisTitle="阶段" YAxisTitle="总耗时" ValueSuffix="秒" Height="330" Series="{Binding Report.PhaseTotalSeries}" />
-                            </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                                <controls:SimpleChart Title="阶段平均耗时" Kind="Bar" XAxisTitle="阶段" YAxisTitle="平均耗时" ValueSuffix="ms" Height="330" Series="{Binding Report.PhaseAverageSeries}" />
-                            </Border>
-                        </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+                                    <controls:SimpleChart Title="阶段总耗时" Kind="Bar" XAxisTitle="阶段" YAxisTitle="总耗时" ValueSuffix="秒" Height="330" Series="{Binding Report.PhaseTotalSeries}" />
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                    <controls:SimpleChart Title="阶段平均耗时" Kind="Bar" XAxisTitle="阶段" YAxisTitle="平均耗时" ValueSuffix="ms" Height="330" Series="{Binding Report.PhaseAverageSeries}" />
+                                </Border>
+                            </Grid>
 
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
-                                <controls:SimpleChart Title="系统负载" Kind="Line" XAxisTitle="相对时间" YAxisTitle="Load" Height="300" Series="{Binding Report.LoadSeries}" />
-                            </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                                <controls:SimpleChart Title="MMU" Kind="Line" XAxisTitle="相对时间" YAxisTitle="百分比" ValueSuffix="%" Height="300" Series="{Binding Report.MmuSeries}" />
-                            </Border>
-                        </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+                                    <controls:SimpleChart Title="系统负载" Kind="Line" XAxisTitle="相对时间" YAxisTitle="Load" Height="300" Series="{Binding Report.LoadSeries}" />
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                    <controls:SimpleChart Title="MMU" Kind="Line" XAxisTitle="相对时间" YAxisTitle="百分比" ValueSuffix="%" Height="300" Series="{Binding Report.MmuSeries}" />
+                                </Border>
+                            </Grid>
 
-                        <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource SectionTitle}" Text="阶段统计明细" />
-                                <DataGrid Height="320" ItemsSource="{Binding Report.PhaseStatistics}">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="阶段" Binding="{Binding Name}" Width="*" />
-                                        <DataGridTextColumn Header="次数" Binding="{Binding Count}" Width="90" />
-                                        <DataGridTextColumn Header="总耗时" Binding="{Binding TotalText}" Width="150" />
-                                        <DataGridTextColumn Header="平均耗时" Binding="{Binding AverageText}" Width="130" />
-                                        <DataGridTextColumn Header="最大耗时" Binding="{Binding MaxText}" Width="130" />
-                                    </DataGrid.Columns>
-                                </DataGrid>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
+                            <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="阶段统计明细" />
+                                    <DataGrid Height="320" ItemsSource="{Binding Report.PhaseStatistics}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="阶段" Binding="{Binding Name}" Width="*" />
+                                            <DataGridTextColumn Header="次数" Binding="{Binding Count}" Width="90" />
+                                            <DataGridTextColumn Header="总耗时" Binding="{Binding TotalText}" Width="150" />
+                                            <DataGridTextColumn Header="平均耗时" Binding="{Binding AverageText}" Width="130" />
+                                            <DataGridTextColumn Header="最大耗时" Binding="{Binding MaxText}" Width="130" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </TabItem>
 
             <TabItem Header="完成明细">
-                <Grid Margin="4">
-                    <DataGrid ItemsSource="{Binding Report.EventRows}" CanUserSortColumns="True">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="GC编号" Binding="{Binding Id}" Width="90" />
-                            <DataGridTextColumn Header="时间" Binding="{Binding TimeText}" Width="110" />
-                            <DataGridTextColumn Header="类型" Binding="{Binding TypeText}" Width="110" />
-                            <DataGridTextColumn Header="原因" Binding="{Binding CauseText}" Width="110" />
-                            <DataGridTextColumn Header="GC前堆" Binding="{Binding HeapBeforeText}" Width="110" />
-                            <DataGridTextColumn Header="GC后堆" Binding="{Binding HeapAfterText}" Width="110" />
-                            <DataGridTextColumn Header="回收量" Binding="{Binding ReclaimedText}" Width="110" />
-                            <DataGridTextColumn Header="完成耗时" Binding="{Binding DurationText}" Width="110" />
-                            <DataGridTextColumn Header="暂停完成" Binding="{Binding PauseText}" Width="110" />
-                            <DataGridTextColumn Header="并发完成" Binding="{Binding ConcurrentText}" Width="110" />
-                            <DataGridTextColumn Header="元空间" Binding="{Binding MetaspaceText}" Width="110" />
-                            <DataGridTextColumn Header="最大并发停顿" Binding="{Binding AllocationStallPeak}" Width="120" />
-                        </DataGrid.Columns>
-                    </DataGrid>
+                <Grid>
+                    <TextBlock Style="{StaticResource EmptyState}" Text="{Binding EmptyStateMessage}" />
+                    <Grid Style="{StaticResource ReportContent}" Margin="4">
+                        <DataGrid ItemsSource="{Binding Report.EventRows}" CanUserSortColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="GC编号" Binding="{Binding Id}" Width="*" MinWidth="60" />
+                                <DataGridTextColumn Header="时间" Binding="{Binding TimeText}" Width="*" MinWidth="80" />
+                                <DataGridTextColumn Header="类型" Binding="{Binding TypeText}" Width="1.4*" MinWidth="100" ElementStyle="{StaticResource TableText}" />
+                                <DataGridTextColumn Header="原因" Binding="{Binding CauseText}" Width="1.4*" MinWidth="100" ElementStyle="{StaticResource TableText}" />
+                                <DataGridTextColumn Header="GC前堆" Binding="{Binding HeapBeforeText}" Width="*" MinWidth="80" />
+                                <DataGridTextColumn Header="GC后堆" Binding="{Binding HeapAfterText}" Width="*" MinWidth="80" />
+                                <DataGridTextColumn Header="回收量" Binding="{Binding ReclaimedText}" Width="*" MinWidth="80" />
+                                <DataGridTextColumn Header="完成耗时" Binding="{Binding DurationText}" Width="*" MinWidth="80" />
+                                <DataGridTextColumn Header="元空间" Binding="{Binding MetaspaceText}" Width="*" MinWidth="80" />
+                                <DataGridTextColumn Header="分配停顿峰值(个)" Binding="{Binding AllocationStallPeak}" Width="*" MinWidth="120" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
                 </Grid>
             </TabItem>
         </TabControl>
